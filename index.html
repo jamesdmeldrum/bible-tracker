@@ -25,7 +25,17 @@ background:color-mix(in srgb,var(--col) 16%,var(--empty));box-shadow:inset 0 0 0
 .c.cl{border-top-left-radius:0;border-bottom-left-radius:0}
 .c.sel{outline:2px solid #fff;outline-offset:1px;z-index:2}
 .s{position:absolute;width:1px;background:var(--line);pointer-events:none}
-footer{display:flex;gap:8px;padding-top:6px;align-items:center;font-size:12px;color:var(--mut)}
+[hidden]{display:none!important}
+.seg{display:flex}
+.seg button{border-radius:0;padding:4px 10px;font-size:12px;margin-left:-1px}
+.seg button:first-child{border-radius:6px 0 0 6px;margin-left:0}
+.seg button:last-child{border-radius:0 6px 6px 0}
+.seg button.on{background:#1f4a7a;border-color:#388bfd;position:relative}
+.d{position:absolute;border-radius:2px;cursor:pointer;-webkit-tap-highlight-color:transparent;background:var(--empty);box-shadow:inset 0 0 0 1px rgba(255,255,255,.05);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;text-shadow:0 0 3px rgba(0,0,0,.75)}
+.d.today{box-shadow:inset 0 0 0 1px rgba(255,255,255,.6)}
+.d.sel{outline:2px solid #fff;outline-offset:1px;z-index:2}
+.dl{position:absolute;font-size:10px;line-height:12px;color:var(--mut);pointer-events:none;white-space:nowrap}
+footer{display:flex;flex-wrap:wrap;gap:8px;padding-top:6px;align-items:center;font-size:12px;color:var(--mut)}
 button{font:inherit;color:var(--fg);background:#21262d;border:1px solid #30363d;border-radius:6px;padding:6px 10px}
 button:active{background:#30363d}
 dialog{background:#161b22;color:var(--fg);border:1px solid #30363d;border-radius:10px;padding:16px;max-width:320px;width:calc(100% - 32px)}
@@ -39,13 +49,15 @@ dialog input{width:100%;font:inherit;padding:8px;background:#0d1117;color:var(--
 <body>
 <header>
   <h1>Bible Reading</h1>
+  <div class="seg" id="viewSeg"><button data-v="chapters">Chapters</button><button data-v="daily">Daily</button></div>
   <span id="stats"></span>
-  <div class="legend">
+  <div class="legend" id="legendCh">
     <span><i style="background:var(--ot)"></i>Old Testament</span>
     <span><i style="background:var(--wis)"></i>Wisdom</span>
     <span><i style="background:var(--gos)"></i>Gospels</span>
     <span><i style="background:var(--nt)"></i>New Testament</span>
   </div>
+  <div class="legend" id="legendDay" hidden><span>Less</span><span id="scale"></span><span>More (10+ pts)</span></div>
 </header>
 <div id="info">Tap a chapter to see it. Double-tap to mark read. Long-press to edit date.</div>
 <div id="grid"></div>
@@ -54,6 +66,7 @@ dialog input{width:100%;font:inherit;padding:8px;background:#0d1117;color:var(--
   <button id="imp">Import</button>
   <input type="file" id="file" accept="application/json" hidden>
   <button id="mode"></button>
+  <div class="seg" id="rangeSeg" hidden><button data-r="w">1W</button><button data-r="m">1M</button><button data-r="q">3M</button><button data-r="y">12M</button></div>
 </footer>
 
 <dialog id="dlg">
@@ -257,6 +270,7 @@ function draw(res) {
 function relayout() {
   const W = grid.clientWidth, H = grid.clientHeight;
   if (W < 50 || H < 50) return;
+  if (view === 'daily') { drawDaily(W, H); return; }
   let res;
   if (mode === 'fixed') res = layoutFixed(W, H);
   else {
@@ -279,7 +293,7 @@ function paint() {
     segs[i].forEach(e => e.classList.toggle('r', r));
     if (r) n++;
   });
-  document.getElementById('stats').textContent = n + ' / ' + chapters.length + ' chapters · ' + (n / chapters.length * 100).toFixed(1) + '%';
+  if (view === 'chapters') document.getElementById('stats').textContent = n + ' / ' + chapters.length + ' chapters · ' + (n / chapters.length * 100).toFixed(1) + '%';
 }
 
 function showInfo(i) {
@@ -308,6 +322,167 @@ function openEdit(i) {
 document.getElementById('dsave').onclick = () => { if (ddate.value) { read[chapters[editing].key] = ddate.value; save(); paint(); showInfo(editing); } dlg.close(); };
 document.getElementById('dunread').onclick = () => { delete read[chapters[editing].key]; save(); paint(); showInfo(editing); dlg.close(); };
 document.getElementById('dcancel').onclick = () => dlg.close();
+
+// ---- daily view ----
+const VIEW_KEY = 'bibleViewV1', RANGE_KEY = 'bibleRangeV1';
+let view = 'chapters', range = 'y', selDay = null;
+try {
+  view = localStorage.getItem(VIEW_KEY) === 'daily' ? 'daily' : 'chapters';
+  const rr = localStorage.getItem(RANGE_KEY);
+  if (rr === 'w' || rr === 'm' || rr === 'q' || rr === 'y') range = rr;
+} catch (e) {}
+
+// ---- daily (pure) ----
+const pad2 = n => String(n).padStart(2, '0');
+const ymd = d => d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+const parseYmd = s => { const p = s.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); };
+function rangeStart(now, r) {
+  const s = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (r === 'w') { s.setDate(s.getDate() - 6); return s; }
+  const n = r === 'm' ? 1 : r === 'q' ? 3 : 12;
+  const y = now.getFullYear(), m = now.getMonth() - n;
+  const dim = new Date(y, m + 1, 0).getDate();
+  return new Date(y, m, Math.min(now.getDate(), dim) + 1);
+}
+// Weeks run Monday..Sunday. Orientation 'h' = weeks as columns (GitHub style);
+// 'v' = weeks as rows, chosen automatically when it gives clearly bigger cells (portrait phones).
+function dailyModel(W, H, r, now) {
+  const today0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const start = rangeStart(now, r);
+  const first = new Date(start); first.setDate(first.getDate() - (start.getDay() + 6) % 7);
+  const cells = [];
+  let k = 0;
+  for (let d = new Date(first); d <= today0; d.setDate(d.getDate() + 1), k++) {
+    if (d >= start) cells.push({date: ymd(d), w: Math.floor(k / 7), dow: k % 7, month: d.getMonth(), isToday: false});
+  }
+  if (cells.length) cells[cells.length - 1].isToday = true;
+  const nW = Math.floor((k - 1) / 7) + 1;
+  const L = 30, T = 18, cap = 44;
+  const fit = o => {
+    const cols = o === 'h' ? nW : 7, rows = o === 'h' ? 7 : nW;
+    const size = g => Math.min((W - L - (cols - 1) * g) / cols, (H - T - (rows - 1) * g) / rows, cap);
+    const g = Math.max(2, Math.round(Math.min(size(2), cap) * 0.15));
+    return {s: Math.max(3, size(g)), g};
+  };
+  const fh = fit('h'), fv = fit('v');
+  const o = fv.s > fh.s * 1.15 ? 'v' : 'h';
+  const f = o === 'h' ? fh : fv;
+  return {cells, nW, o, s: f.s, g: f.g, L, T};
+}
+// ---- end daily ----
+
+const dayColor = p => 'color-mix(in srgb, #39d353 ' + (Math.min(p, 10) * 10) + '%, #0e4429)';
+
+function dailyTotals() {
+  const pts = {}, list = {};
+  chapters.forEach(c => {
+    const d = read[c.key];
+    if (d) { pts[d] = (pts[d] || 0) + c.size; (list[d] = list[d] || []).push(c); }
+  });
+  return {pts, list};
+}
+
+function compress(list) {
+  const out = []; let run = null;
+  list.forEach(c => {
+    if (run && run.book === c.book && c.ch === run.end + 1) run.end = c.ch;
+    else { run = {book: c.book, start: c.ch, end: c.ch}; out.push(run); }
+  });
+  return out.map(r => r.book + ' ' + r.start + (r.end > r.start ? '–' + r.end : '')).join(', ');
+}
+
+function drawDaily(W, H) {
+  const m = dailyModel(W, H, range, new Date());
+  const {pts} = dailyTotals();
+  const step = m.s + m.g, off = (m.s - 12) / 2;
+  const frag = document.createDocumentFragment();
+  let total = 0, active = 0;
+  const label = (txt, x, y, w, align) => {
+    const e = document.createElement('div');
+    e.className = 'dl'; e.textContent = txt;
+    e.style.cssText = 'left:' + x + 'px;top:' + y + 'px;' + (w ? 'width:' + w + 'px;text-align:' + align + ';' : '');
+    frag.appendChild(e);
+  };
+  m.cells.forEach(c => {
+    const p = pts[c.date] || 0;
+    if (p) { total += p; active++; }
+    const x = m.L + (m.o === 'h' ? c.w : c.dow) * step;
+    const y = m.T + (m.o === 'h' ? c.dow : c.w) * step;
+    const d = document.createElement('div');
+    d.className = 'd' + (c.isToday ? ' today' : '');
+    d.dataset.date = c.date;
+    d.style.cssText = 'left:' + x + 'px;top:' + y + 'px;width:' + m.s + 'px;height:' + m.s + 'px;' +
+      (p ? 'background:' + dayColor(p) + ';' : '') + (m.s >= 20 ? 'font-size:' + Math.round(m.s * 0.4) + 'px;' : '');
+    if (p && m.s >= 20) d.textContent = p;
+    frag.appendChild(d);
+  });
+  // month labels
+  const firstOfWeek = {};
+  m.cells.forEach(c => { if (!(c.w in firstOfWeek)) firstOfWeek[c.w] = c; });
+  const marks = [];
+  let lastM = -1;
+  for (let w = 0; w < m.nW; w++) {
+    const c = firstOfWeek[w]; if (!c) continue;
+    if (c.month !== lastM) { marks.push({w, month: c.month}); lastM = c.month; }
+  }
+  const minGap = m.o === 'h' ? 30 : 13;
+  if (marks.length > 1 && (marks[1].w - marks[0].w) * step < minGap) marks.shift();   // first week is only a sliver of its month
+  let lastW = -1000;
+  marks.forEach(k => {
+    if ((k.w - lastW) * step < minGap) return;
+    const name = new Date(2000, k.month, 1).toLocaleDateString(undefined, {month: 'short'});
+    if (m.o === 'h') label(name, m.L + k.w * step, 0);
+    else label(name, 0, m.T + k.w * step + off, m.L - 4, 'right');
+    lastW = k.w;
+  });
+  // weekday labels
+  const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  if (m.o === 'h') [0, 2, 4].forEach(r => label(names[r], 0, m.T + r * step + off, m.L - 4, 'right'));
+  else names.forEach((n, r) => label(m.s >= 26 ? n : n[0], m.L + r * step, m.T - 14, m.s, 'center'));
+  grid.textContent = '';
+  grid.appendChild(frag);
+  document.getElementById('stats').textContent = total + ' pts · ' + active + ' active day' + (active === 1 ? '' : 's');
+  if (selDay) { const n = grid.querySelector('.d[data-date="' + selDay + '"]'); if (n) n.classList.add('sel'); }
+}
+
+function showDay(date) {
+  const {pts, list} = dailyTotals();
+  const p = pts[date] || 0;
+  const label = parseYmd(date).toLocaleDateString(undefined, {weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'});
+  info.textContent = label + ' · ' + (p ? p + (p === 1 ? ' pt' : ' pts') + ' · ' + compress(list[date]) : 'nothing logged');
+  if (selDay) { const o = grid.querySelector('.d[data-date="' + selDay + '"]'); if (o) o.classList.remove('sel'); }
+  selDay = date;
+  const n = grid.querySelector('.d[data-date="' + date + '"]'); if (n) n.classList.add('sel');
+}
+
+function applyViewUI() {
+  const daily = view === 'daily';
+  document.getElementById('legendCh').hidden = daily;
+  document.getElementById('legendDay').hidden = !daily;
+  document.getElementById('rangeSeg').hidden = !daily;
+  modeBtn.hidden = daily;
+  document.querySelectorAll('#viewSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === view));
+  document.querySelectorAll('#rangeSeg button').forEach(b => b.classList.toggle('on', b.dataset.r === range));
+  info.textContent = daily ? 'Tap a day to see what you read.' : 'Tap a chapter to see it. Double-tap to mark read. Long-press to edit date.';
+}
+function setView(v) {
+  if (v === view) return;
+  view = v; selected = null; selDay = null;
+  try { localStorage.setItem(VIEW_KEY, view); } catch (e) {}
+  applyViewUI(); relayout();
+}
+function setRange(r) {
+  range = r; selDay = null;
+  try { localStorage.setItem(RANGE_KEY, range); } catch (e) {}
+  applyViewUI(); relayout();
+}
+document.getElementById('viewSeg').onclick = e => { const b = e.target.closest('button'); if (b) setView(b.dataset.v); };
+document.getElementById('rangeSeg').onclick = e => { const b = e.target.closest('button'); if (b) setRange(b.dataset.r); };
+document.getElementById('scale').innerHTML = [0, 1, 3, 5, 7, 10].map(p =>
+  '<i style="background:' + (p ? dayColor(p) : 'var(--empty)') + '"></i>').join('');
+grid.addEventListener('pointerover', e => { if (e.pointerType === 'mouse') { const d = e.target.closest('.d'); if (d) showDay(d.dataset.date); } });
+grid.addEventListener('click', e => { const d = e.target.closest('.d'); if (d) showDay(d.dataset.date); });
+applyViewUI();
 
 // ---- interaction ----
 const idx = e => { const c = e.target.closest && e.target.closest('.c'); return c ? +c.dataset.i : null; };
