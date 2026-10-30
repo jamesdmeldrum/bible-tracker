@@ -57,7 +57,7 @@ dialog input{width:100%;font:inherit;padding:8px;background:#0d1117;color:var(--
     <span><i style="background:var(--gos)"></i>Gospels</span>
     <span><i style="background:var(--nt)"></i>New Testament</span>
   </div>
-  <div class="legend" id="legendDay" hidden><span>Less</span><span id="scale"></span><span>More (10+ pts)</span></div>
+  <div class="legend" id="legendDay" hidden><span>Less</span><span id="scale"></span><span>More</span></div>
 </header>
 <div id="info">Tap a chapter to see it. Double-tap to mark read. Long-press to edit date.</div>
 <div id="grid"></div>
@@ -393,10 +393,10 @@ function compress(list) {
 
 function drawDaily(W, H) {
   const m = dailyModel(W, H, range, new Date());
-  const {pts} = dailyTotals();
+  const {pts, list} = dailyTotals();
   const step = m.s + m.g, off = (m.s - 12) / 2;
   const frag = document.createDocumentFragment();
-  let total = 0, active = 0;
+  let total = 0, active = 0;   // total = chapters read in range
   const label = (txt, x, y, w, align) => {
     const e = document.createElement('div');
     e.className = 'dl'; e.textContent = txt;
@@ -405,15 +405,14 @@ function drawDaily(W, H) {
   };
   m.cells.forEach(c => {
     const p = pts[c.date] || 0;
-    if (p) { total += p; active++; }
+    if (p) { total += list[c.date].length; active++; }
     const x = m.L + (m.o === 'h' ? c.w : c.dow) * step;
     const y = m.T + (m.o === 'h' ? c.dow : c.w) * step;
     const d = document.createElement('div');
     d.className = 'd' + (c.isToday ? ' today' : '');
     d.dataset.date = c.date;
     d.style.cssText = 'left:' + x + 'px;top:' + y + 'px;width:' + m.s + 'px;height:' + m.s + 'px;' +
-      (p ? 'background:' + dayColor(p) + ';' : '') + (m.s >= 20 ? 'font-size:' + Math.round(m.s * 0.4) + 'px;' : '');
-    if (p && m.s >= 20) d.textContent = p;
+      (p ? 'background:' + dayColor(p) + ';' : '');
     frag.appendChild(d);
   });
   // month labels
@@ -441,7 +440,7 @@ function drawDaily(W, H) {
   else names.forEach((n, r) => label(m.s >= 26 ? n : n[0], m.L + r * step, m.T - 14, m.s, 'center'));
   grid.textContent = '';
   grid.appendChild(frag);
-  document.getElementById('stats').textContent = total + ' pts · ' + active + ' active day' + (active === 1 ? '' : 's');
+  document.getElementById('stats').textContent = total + ' chapter' + (total === 1 ? '' : 's') + ' · ' + active + ' active day' + (active === 1 ? '' : 's');
   if (selDay) { const n = grid.querySelector('.d[data-date="' + selDay + '"]'); if (n) n.classList.add('sel'); }
 }
 
@@ -449,7 +448,7 @@ function showDay(date) {
   const {pts, list} = dailyTotals();
   const p = pts[date] || 0;
   const label = parseYmd(date).toLocaleDateString(undefined, {weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'});
-  info.textContent = label + ' · ' + (p ? p + (p === 1 ? ' pt' : ' pts') + ' · ' + compress(list[date]) : 'nothing logged');
+  info.textContent = label + ' · ' + (p ? list[date].length + (list[date].length === 1 ? ' chapter' : ' chapters') + ' · ' + compress(list[date]) : 'nothing logged');
   if (selDay) { const o = grid.querySelector('.d[data-date="' + selDay + '"]'); if (o) o.classList.remove('sel'); }
   selDay = date;
   const n = grid.querySelector('.d[data-date="' + date + '"]'); if (n) n.classList.add('sel');
