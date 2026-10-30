@@ -286,14 +286,15 @@ function relayout() {
   draw(res);
 }
 
+const TOTAL_VERSES = chapters.reduce((a, c) => a + c.verses, 0);
 function paint() {
-  let n = 0;
+  let n = 0, v = 0;
   chapters.forEach((c, i) => {
     const r = !!read[c.key];
     segs[i].forEach(e => e.classList.toggle('r', r));
-    if (r) n++;
+    if (r) { n++; v += c.verses; }
   });
-  if (view === 'chapters') document.getElementById('stats').textContent = n + ' / ' + chapters.length + ' chapters · ' + (n / chapters.length * 100).toFixed(1) + '%';
+  if (view === 'chapters') document.getElementById('stats').textContent = n + ' / ' + chapters.length + ' chapters · ' + (v / TOTAL_VERSES * 100).toFixed(1) + '%';
 }
 
 function showInfo(i) {
