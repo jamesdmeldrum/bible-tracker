@@ -17,10 +17,12 @@ h1{font-size:15px;margin:0;font-weight:600}
 .legend{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--mut)}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
 #info{height:20px;font-size:13px;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#grid{position:relative;flex:1;min-height:0;overflow-y:auto;touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#grid{position:relative;flex:1;min-height:0;overflow-x:hidden;overflow-y:auto;touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 .c{position:absolute;border-radius:2px;cursor:pointer;-webkit-tap-highlight-color:transparent;
 background:color-mix(in srgb,var(--col) 16%,var(--empty));box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
 .c.r{background:var(--col);box-shadow:none}
+.c.cr{border-top-right-radius:0;border-bottom-right-radius:0}
+.c.cl{border-top-left-radius:0;border-bottom-left-radius:0}
 .c.sel{outline:2px solid #fff;outline-offset:1px;z-index:2}
 .s{position:absolute;width:1px;background:var(--line);pointer-events:none}
 footer{display:flex;gap:8px;padding-top:6px;align-items:center;font-size:12px;color:var(--mut)}
@@ -51,7 +53,7 @@ dialog input{width:100%;font:inherit;padding:8px;background:#0d1117;color:var(--
   <button id="exp">Export</button>
   <button id="imp">Import</button>
   <input type="file" id="file" accept="application/json" hidden>
-  <span>Width = chapter length (S/M/L)</span>
+  <button id="mode"></button>
 </footer>
 
 <dialog id="dlg">
@@ -157,67 +159,133 @@ const fmt = d => new Date(d + 'T00:00:00').toLocaleDateString(undefined, {day:'n
 // ---- layout ----
 const grid = document.getElementById('grid');
 const info = document.getElementById('info');
-const els = [], seps = [];
+const segs = chapters.map(() => []);
+let selected = null;
 
-chapters.forEach((c, i) => {
-  const d = document.createElement('div');
-  d.className = 'c'; d.dataset.i = i;
-  d.style.setProperty('--col', COLORS[c.cat]);
-  grid.appendChild(d); els.push(d);
-  if (c.first && i > 0) { const s = document.createElement('div'); s.className = 's'; grid.appendChild(s); seps[i] = s; }
-});
-
-function place(u, W, apply) {
-  const g = Math.max(1, Math.round(u * 0.2)), sep = g * 2 + 1;
+// ---- layout (pure) ----
+// "By length": one continuous strip wrapped to the chart width. A chapter that
+// doesn't fit at the end of a row is split and continues on the next row.
+function layoutLength(u, W) {
+  const g = Math.max(1, Math.round(u * 0.2)), sep = g * 2 + 1, minSeg = Math.max(3, u * 0.35);
+  const rects = [], lines = [];
   let x = 0, y = 0;
+  const nextRow = () => { x = 0; y += u + g; };
   chapters.forEach((c, i) => {
     const w = c.size * u + (c.size - 1) * g;
     let lead = (c.first && x > 0) ? sep : 0;
-    if (x + lead + w > W + 0.5) { x = 0; y += u + g; lead = 0; }
-    if (apply) {
-      const e = els[i];
-      e.style.left = (x + lead) + 'px'; e.style.top = y + 'px';
-      e.style.width = w + 'px'; e.style.height = u + 'px';
-      const s = seps[i];
-      if (s) {
-        if (lead) { s.style.display = 'block'; s.style.left = (x + lead / 2 - g / 2 - 0.5) + 'px'; s.style.top = (y - g / 2) + 'px'; s.style.height = (u + g) + 'px'; }
-        else s.style.display = 'none';
+    if (W - (x + lead) < minSeg) { nextRow(); lead = 0; }
+    const startX = x, startY = y;
+    x += lead;
+    let left = w, first = true;
+    while (left > 0.01) {
+      const rem = W - x;
+      let piece = left;
+      if (left > rem + 0.5) {
+        const after = left - rem;
+        piece = after < minSeg ? rem - (minSeg - after) : rem;   // avoid hairline pieces
+        if (piece < minSeg) { nextRow(); continue; }
       }
+      const last = piece >= left - 0.01;
+      if (first && lead && y === startY) lines.push({x: startX + (lead - g) / 2 - 0.5, y: Math.max(0, y - g / 2), h: u + g});
+      rects.push({i, x, y, w: piece, h: u, cl: !first, cr: !last});
+      left -= piece; first = false;
+      if (last) x += piece; else nextRow();
     }
-    x += lead + w + g;
+    x += g;
   });
-  return y + u;
+  return {rects, lines, h: y + u};
+}
+
+// "Fixed": identical square cells in an exact columns x rows grid.
+function layoutFixed(W, H) {
+  const g = 3, N = chapters.length;
+  let cols = 0;
+  for (let k = 1; k <= N; k++) {
+    const s = (W - (k - 1) * g) / k;
+    if (s < 5) break;
+    if (Math.ceil(N / k) * (s + g) - g <= H) { cols = k; break; }
+  }
+  if (!cols) cols = Math.max(1, Math.floor((W + g) / (9 + g)));   // too small to fit: scroll
+  const s = (W - (cols - 1) * g) / cols;
+  const rects = [], lines = [];
+  chapters.forEach((c, i) => {
+    const col = i % cols, row = Math.floor(i / cols);
+    const x = col * (s + g), y = row * (s + g);
+    rects.push({i, x, y, w: s, h: s, cl: false, cr: false});
+    if (c.first && col > 0) lines.push({x: x - g / 2 - 0.5, y: Math.max(0, y - g / 2), h: s + g});
+  });
+  return {rects, lines, h: Math.ceil(N / cols) * (s + g) - g};
+}
+// ---- end layout ----
+
+// ---- mode ----
+const MODE_KEY = 'bibleModeV1';
+let mode = 'length';
+try { mode = localStorage.getItem(MODE_KEY) === 'fixed' ? 'fixed' : 'length'; } catch (e) {}
+const modeBtn = document.getElementById('mode');
+const setModeLabel = () => { modeBtn.textContent = mode === 'length' ? 'Size: by length' : 'Size: fixed'; };
+modeBtn.onclick = () => {
+  mode = mode === 'length' ? 'fixed' : 'length';
+  try { localStorage.setItem(MODE_KEY, mode); } catch (e) {}
+  setModeLabel(); relayout();
+};
+setModeLabel();
+
+// ---- rendering ----
+function draw(res) {
+  grid.textContent = '';
+  segs.forEach(a => { a.length = 0; });
+  const frag = document.createDocumentFragment();
+  res.rects.forEach(r => {
+    const d = document.createElement('div');
+    d.className = 'c' + (r.cl ? ' cl' : '') + (r.cr ? ' cr' : '');
+    d.dataset.i = r.i;
+    d.style.cssText = '--col:' + COLORS[chapters[r.i].cat] + ';left:' + r.x + 'px;top:' + r.y + 'px;width:' + r.w + 'px;height:' + r.h + 'px';
+    segs[r.i].push(d); frag.appendChild(d);
+  });
+  res.lines.forEach(l => {
+    const s = document.createElement('div');
+    s.className = 's';
+    s.style.cssText = 'left:' + l.x + 'px;top:' + l.y + 'px;height:' + l.h + 'px';
+    frag.appendChild(s);
+  });
+  grid.appendChild(frag);
+  paint();
+  if (selected != null) segs[selected].forEach(e => e.classList.add('sel'));
 }
 
 function relayout() {
   const W = grid.clientWidth, H = grid.clientHeight;
   if (W < 50 || H < 50) return;
-  let lo = 3, hi = 48;
-  if (place(lo, W, false) > H) { place(lo, W, true); return; }   // too tiny: allow scrolling
-  for (let k = 0; k < 14; k++) {
-    const mid = (lo + hi) / 2;
-    if (place(mid, W, false) <= H) lo = mid; else hi = mid;
+  let res;
+  if (mode === 'fixed') res = layoutFixed(W, H);
+  else {
+    let lo = 5, hi = 48;
+    if (layoutLength(lo, W).h <= H) {
+      for (let k = 0; k < 14; k++) {
+        const mid = (lo + hi) / 2;
+        if (layoutLength(mid, W).h <= H) lo = mid; else hi = mid;
+      }
+    }
+    res = layoutLength(lo, W);
   }
-  place(lo, W, true);
+  draw(res);
 }
 
-// ---- rendering state ----
 function paint() {
   let n = 0;
-  const cat = {ot:[0,0], wis:[0,0], gos:[0,0], nt:[0,0]};
   chapters.forEach((c, i) => {
     const r = !!read[c.key];
-    els[i].classList.toggle('r', r);
+    segs[i].forEach(e => e.classList.toggle('r', r));
     if (r) n++;
   });
   document.getElementById('stats').textContent = n + ' / ' + chapters.length + ' chapters · ' + (n / chapters.length * 100).toFixed(1) + '%';
 }
 
-let selected = null;
 function showInfo(i) {
   const c = chapters[i];
-  if (selected != null) els[selected].classList.remove('sel');
-  selected = i; els[i].classList.add('sel');
+  if (selected != null) segs[selected].forEach(e => e.classList.remove('sel'));
+  selected = i; segs[i].forEach(e => e.classList.add('sel'));
   const d = read[c.key];
   info.textContent = c.book + ' ' + c.ch + ' · ' + c.verses + ' verses · ' + (d ? 'read ' + fmt(d) : 'not read');
 }
