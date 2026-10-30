@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0d1117">
+<title>Bible Reading Tracker</title>
+<style>
+:root{--bg:#0d1117;--fg:#e6edf3;--mut:#8b949e;--empty:#161b22;--line:rgba(255,255,255,.13);
+--ot:#2ea043;--wis:#d29922;--gos:#a371f7;--nt:#58a6ff}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font:14px system-ui,-apple-system,sans-serif;overscroll-behavior:none}
+body{display:flex;flex-direction:column;padding:max(8px,env(safe-area-inset-top)) 8px max(8px,env(safe-area-inset-bottom))}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding-bottom:6px}
+h1{font-size:15px;margin:0;font-weight:600}
+#stats{color:var(--mut);font-size:13px}
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--mut)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+#info{height:20px;font-size:13px;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#grid{position:relative;flex:1;min-height:0;overflow-y:auto;touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.c{position:absolute;border-radius:2px;cursor:pointer;-webkit-tap-highlight-color:transparent;
+background:color-mix(in srgb,var(--col) 16%,var(--empty));box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
+.c.r{background:var(--col);box-shadow:none}
+.c.sel{outline:2px solid #fff;outline-offset:1px;z-index:2}
+.s{position:absolute;width:1px;background:var(--line);pointer-events:none}
+footer{display:flex;gap:8px;padding-top:6px;align-items:center;font-size:12px;color:var(--mut)}
+button{font:inherit;color:var(--fg);background:#21262d;border:1px solid #30363d;border-radius:6px;padding:6px 10px}
+button:active{background:#30363d}
+dialog{background:#161b22;color:var(--fg);border:1px solid #30363d;border-radius:10px;padding:16px;max-width:320px;width:calc(100% - 32px)}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+dialog h2{font-size:16px;margin:0 0 10px}
+dialog input{width:100%;font:inherit;padding:8px;background:#0d1117;color:var(--fg);border:1px solid #30363d;border-radius:6px;color-scheme:dark}
+.row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.row button{flex:1}
+</style>
+</head>
+<body>
+<header>
+  <h1>Bible Reading</h1>
+  <span id="stats"></span>
+  <div class="legend">
+    <span><i style="background:var(--ot)"></i>Old Testament</span>
+    <span><i style="background:var(--wis)"></i>Wisdom</span>
+    <span><i style="background:var(--gos)"></i>Gospels</span>
+    <span><i style="background:var(--nt)"></i>New Testament</span>
+  </div>
+</header>
+<div id="info">Tap a chapter to see it. Double-tap to mark read. Long-press to edit date.</div>
+<div id="grid"></div>
+<footer>
+  <button id="exp">Export</button>
+  <button id="imp">Import</button>
+  <input type="file" id="file" accept="application/json" hidden>
+  <span>Width = chapter length (S/M/L)</span>
+</footer>
+
+<dialog id="dlg">
+  <h2 id="dtitle"></h2>
+  <input type="date" id="ddate">
+  <div class="row">
+    <button id="dsave">Save as read</button>
+    <button id="dunread">Mark unread</button>
+    <button id="dcancel">Cancel</button>
+  </div>
+</dialog>
+
+<script>
+// name | category | verses per chapter
+const RAW = `Genesis|ot|31,25,24,26,32,22,24,22,29,32,32,20,18,24,21,16,27,33,38,18,34,24,20,67,34,35,46,22,35,43,55,32,20,31,29,43,36,30,23,23,57,38,34,34,28,34,31,22,33,26
+Exodus|ot|22,25,22,31,23,30,25,32,35,29,10,51,22,31,27,36,16,27,25,26,36,31,33,18,40,37,21,43,46,38,18,35,23,35,35,38,29,31,43,38
+Leviticus|ot|17,16,17,35,19,30,38,36,24,20,47,8,59,57,33,34,16,30,37,27,24,33,44,23,55,46,34
+Numbers|ot|54,34,51,49,31,27,89,26,23,36,35,16,33,45,41,50,13,32,22,29,35,41,30,25,18,65,23,31,40,16,54,42,56,29,34,13
+Deuteronomy|ot|46,37,29,49,33,25,26,20,29,22,32,32,18,29,23,22,20,22,21,20,23,30,25,22,19,19,26,68,29,20,30,52,29,12
+Joshua|ot|18,24,17,24,15,27,26,35,27,43,23,24,33,15,63,10,18,28,51,9,45,34,16,33
+Judges|ot|36,23,31,24,31,40,25,35,57,18,40,15,25,20,20,31,13,31,30,48,25
+Ruth|ot|22,23,18,22
+1 Samuel|ot|28,36,21,22,12,21,17,22,27,27,15,25,23,52,35,23,58,30,24,42,15,23,29,22,44,25,12,25,11,31,13
+2 Samuel|ot|27,32,39,12,25,23,29,18,13,19,27,31,39,33,37,23,29,33,43,26,22,51,39,25
+1 Kings|ot|53,46,28,34,18,38,51,66,28,29,43,33,34,31,34,34,24,46,21,43,29,53
+2 Kings|ot|18,25,27,44,27,33,20,29,37,36,21,21,25,29,38,20,41,37,37,21,26,20,37,20,30
+1 Chronicles|ot|54,55,24,43,26,81,40,40,44,14,47,40,14,17,29,43,27,17,19,8,30,19,32,31,31,32,34,21,30
+2 Chronicles|ot|17,18,17,22,14,42,22,18,31,19,23,16,22,15,19,14,19,34,11,37,20,12,21,27,28,23,9,27,36,27,21,33,25,33,27,23
+Ezra|ot|11,70,13,24,17,22,28,36,15,44
+Nehemiah|ot|11,20,32,23,19,19,73,18,38,39,36,47,31
+Esther|ot|22,23,15,17,14,14,10,17,32,3
+Job|wis|22,13,26,21,27,30,21,22,35,22,20,25,28,22,35,22,16,21,29,29,34,30,17,25,6,14,23,28,25,31,40,22,33,37,16,33,24,41,30,24,34,17
+Psalms|wis|6,12,8,8,12,10,17,9,20,18,7,8,6,7,5,11,15,50,14,9,13,31,6,10,22,12,14,9,11,12,24,11,22,22,28,12,40,22,13,17,13,11,5,26,17,11,9,14,20,23,19,9,6,7,23,13,11,11,17,12,8,12,11,10,13,20,7,35,36,5,24,20,28,23,10,12,20,72,13,19,16,8,18,12,13,17,7,18,52,17,16,15,5,23,11,13,12,9,9,5,8,28,22,35,45,48,43,13,31,7,10,10,9,8,18,19,2,29,176,7,8,9,4,8,5,6,5,6,8,8,3,18,3,3,21,26,9,8,24,13,10,7,12,15,21,10,20,14,9,6
+Proverbs|wis|33,22,35,27,23,35,27,36,18,32,31,28,25,35,33,33,28,24,29,30,31,29,35,34,28,28,27,28,27,33,31
+Ecclesiastes|wis|18,26,22,16,20,12,29,17,18,20,10,14
+Song of Songs|wis|17,17,11,16,16,13,13,14
+Isaiah|ot|31,22,26,6,30,13,25,22,21,34,16,6,22,32,9,14,14,7,25,6,17,25,18,23,12,21,13,29,24,33,9,20,24,17,10,22,38,22,8,31,29,25,28,28,25,13,15,22,26,11,23,15,12,17,13,12,21,14,21,22,11,12,19,12,25,24
+Jeremiah|ot|19,37,25,31,31,30,34,22,26,25,23,17,27,22,21,21,27,23,15,18,14,30,40,10,38,24,22,17,32,24,40,44,26,22,19,32,21,28,18,16,18,22,13,30,5,28,7,47,39,46,64,34
+Lamentations|ot|22,22,66,22,22
+Ezekiel|ot|28,10,27,17,17,14,27,18,11,22,25,28,23,23,8,63,24,32,14,49,32,31,49,27,17,21,36,26,21,26,18,32,33,31,15,38,28,23,29,49,26,20,27,31,25,24,23,35
+Daniel|ot|21,49,30,37,31,28,28,27,27,21,45,13
+Hosea|ot|11,23,5,19,15,11,16,14,17,15,12,14,16,9
+Joel|ot|20,32,21
+Amos|ot|15,16,15,13,27,14,17,14,15
+Obadiah|ot|21
+Jonah|ot|17,10,10,11
+Micah|ot|16,13,12,13,15,16,20
+Nahum|ot|15,13,19
+Habakkuk|ot|17,20,19
+Zephaniah|ot|18,15,20
+Haggai|ot|15,23
+Zechariah|ot|21,13,10,14,11,15,14,23,17,12,17,14,9,21
+Malachi|ot|14,17,18,6
+Matthew|gos|25,23,17,25,48,34,29,34,38,42,30,50,58,36,39,28,27,35,30,34,46,46,39,51,46,75,66,20
+Mark|gos|45,28,35,41,43,56,37,38,50,52,33,44,37,72,47,20
+Luke|gos|80,52,38,44,39,49,50,56,62,42,54,59,35,35,32,31,37,43,48,47,38,71,56,53
+John|gos|51,25,36,54,47,71,53,59,41,42,57,50,38,31,27,33,26,40,42,31,25
+Acts|nt|26,47,26,37,42,15,60,40,43,48,30,25,52,28,41,40,34,28,41,38,40,30,35,27,27,32,44,31
+Romans|nt|32,29,31,25,21,23,25,39,33,21,36,21,14,23,33,27
+1 Corinthians|nt|31,16,23,21,13,20,40,13,27,33,34,31,13,40,58,24
+2 Corinthians|nt|24,17,18,18,21,18,16,24,15,18,33,21,14
+Galatians|nt|24,21,29,31,26,18
+Ephesians|nt|23,22,21,32,33,24
+Philippians|nt|30,30,21,23
+Colossians|nt|29,23,25,18
+1 Thessalonians|nt|10,20,13,18,28
+2 Thessalonians|nt|12,17,18
+1 Timothy|nt|20,15,16,16,25,21
+2 Timothy|nt|18,26,17,22
+Titus|nt|16,15,15
+Philemon|nt|25
+Hebrews|nt|14,18,19,16,14,20,28,13,28,39,40,29,25
+James|nt|27,26,18,17,20
+1 Peter|nt|25,25,22,19,14
+2 Peter|nt|21,22,18
+1 John|nt|10,29,24,21,21
+2 John|nt|13
+3 John|nt|14
+Jude|nt|25
+Revelation|nt|20,29,22,11,14,17,17,13,21,11,19,17,18,20,8,21,18,24,21,15,27,21`;
+
+const COLORS = {ot:'var(--ot)', wis:'var(--wis)', gos:'var(--gos)', nt:'var(--nt)'};
+const sizeOf = v => v <= 15 ? 1 : v <= 30 ? 2 : 3;   // S / M / L
+
+const chapters = [];
+RAW.trim().split('\n').forEach((line, bi) => {
+  const [name, cat, vs] = line.split('|');
+  vs.split(',').forEach((v, ci) => chapters.push({
+    key: bi + ':' + (ci + 1), book: name, ch: ci + 1, verses: +v,
+    size: sizeOf(+v), cat, first: ci === 0
+  }));
+});
+
+// ---- storage ----
+const KEY = 'bibleReadV1';
+let read = {};
+try { read = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { read = {}; }
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(read)); } catch (e) {} };
+try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
+const today = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD, local
+const fmt = d => new Date(d + 'T00:00:00').toLocaleDateString(undefined, {day:'numeric', month:'short', year:'numeric'});
+
+// ---- layout ----
+const grid = document.getElementById('grid');
+const info = document.getElementById('info');
+const els = [], seps = [];
+
+chapters.forEach((c, i) => {
+  const d = document.createElement('div');
+  d.className = 'c'; d.dataset.i = i;
+  d.style.setProperty('--col', COLORS[c.cat]);
+  grid.appendChild(d); els.push(d);
+  if (c.first && i > 0) { const s = document.createElement('div'); s.className = 's'; grid.appendChild(s); seps[i] = s; }
+});
+
+function place(u, W, apply) {
+  const g = Math.max(1, Math.round(u * 0.2)), sep = g * 2 + 1;
+  let x = 0, y = 0;
+  chapters.forEach((c, i) => {
+    const w = c.size * u + (c.size - 1) * g;
+    let lead = (c.first && x > 0) ? sep : 0;
+    if (x + lead + w > W + 0.5) { x = 0; y += u + g; lead = 0; }
+    if (apply) {
+      const e = els[i];
+      e.style.left = (x + lead) + 'px'; e.style.top = y + 'px';
+      e.style.width = w + 'px'; e.style.height = u + 'px';
+      const s = seps[i];
+      if (s) {
+        if (lead) { s.style.display = 'block'; s.style.left = (x + lead / 2 - g / 2 - 0.5) + 'px'; s.style.top = (y - g / 2) + 'px'; s.style.height = (u + g) + 'px'; }
+        else s.style.display = 'none';
+      }
+    }
+    x += lead + w + g;
+  });
+  return y + u;
+}
+
+function relayout() {
+  const W = grid.clientWidth, H = grid.clientHeight;
+  if (W < 50 || H < 50) return;
+  let lo = 3, hi = 48;
+  if (place(lo, W, false) > H) { place(lo, W, true); return; }   // too tiny: allow scrolling
+  for (let k = 0; k < 14; k++) {
+    const mid = (lo + hi) / 2;
+    if (place(mid, W, false) <= H) lo = mid; else hi = mid;
+  }
+  place(lo, W, true);
+}
+
+// ---- rendering state ----
+function paint() {
+  let n = 0;
+  const cat = {ot:[0,0], wis:[0,0], gos:[0,0], nt:[0,0]};
+  chapters.forEach((c, i) => {
+    const r = !!read[c.key];
+    els[i].classList.toggle('r', r);
+    if (r) n++;
+  });
+  document.getElementById('stats').textContent = n + ' / ' + chapters.length + ' chapters · ' + (n / chapters.length * 100).toFixed(1) + '%';
+}
+
+let selected = null;
+function showInfo(i) {
+  const c = chapters[i];
+  if (selected != null) els[selected].classList.remove('sel');
+  selected = i; els[i].classList.add('sel');
+  const d = read[c.key];
+  info.textContent = c.book + ' ' + c.ch + ' · ' + c.verses + ' verses · ' + (d ? 'read ' + fmt(d) : 'not read');
+}
+function toggle(i) {
+  const c = chapters[i];
+  if (read[c.key]) delete read[c.key]; else read[c.key] = today();
+  save(); paint(); showInfo(i);
+}
+
+// ---- date dialog ----
+const dlg = document.getElementById('dlg'), ddate = document.getElementById('ddate');
+let editing = null;
+function openEdit(i) {
+  if (dlg.open) return;
+  editing = i; const c = chapters[i];
+  document.getElementById('dtitle').textContent = c.book + ' ' + c.ch;
+  ddate.value = read[c.key] || today();
+  dlg.showModal();
+}
+document.getElementById('dsave').onclick = () => { if (ddate.value) { read[chapters[editing].key] = ddate.value; save(); paint(); showInfo(editing); } dlg.close(); };
+document.getElementById('dunread').onclick = () => { delete read[chapters[editing].key]; save(); paint(); showInfo(editing); dlg.close(); };
+document.getElementById('dcancel').onclick = () => dlg.close();
+
+// ---- interaction ----
+const idx = e => { const c = e.target.closest && e.target.closest('.c'); return c ? +c.dataset.i : null; };
+let lp = null, longFired = false, lastTap = {i: null, t: 0};
+
+grid.addEventListener('pointerover', e => { if (e.pointerType === 'mouse') { const i = idx(e); if (i != null) showInfo(i); } });
+grid.addEventListener('click', e => {
+  if (e.pointerType && e.pointerType !== 'mouse') return;      // touch handled below
+  const i = idx(e); if (i != null) toggle(i);
+});
+grid.addEventListener('contextmenu', e => { e.preventDefault(); const i = idx(e); if (i != null && !longFired) openEdit(i); });
+
+grid.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'mouse') return;
+  const i = idx(e); if (i == null) return;
+  longFired = false; clearTimeout(lp);
+  lp = setTimeout(() => { longFired = true; showInfo(i); openEdit(i); if (navigator.vibrate) navigator.vibrate(25); }, 500);
+});
+grid.addEventListener('pointerup', e => {
+  if (e.pointerType === 'mouse') return;
+  clearTimeout(lp);
+  const i = idx(e); if (i == null || longFired) { setTimeout(() => longFired = false, 400); return; }
+  const now = Date.now();
+  if (lastTap.i === i && now - lastTap.t < 350) { toggle(i); lastTap = {i: null, t: 0}; }
+  else { showInfo(i); lastTap = {i, t: now}; }
+});
+['pointercancel', 'pointerleave'].forEach(t => grid.addEventListener(t, e => { if (e.pointerType !== 'mouse') clearTimeout(lp); }));
+
+// ---- export / import ----
+document.getElementById('exp').onclick = () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(read, null, 1)], {type: 'application/json'}));
+  a.download = 'bible-progress-' + today() + '.json'; a.click();
+};
+const file = document.getElementById('file');
+document.getElementById('imp').onclick = () => file.click();
+file.onchange = async () => {
+  try {
+    const obj = JSON.parse(await file.files[0].text());
+    if (typeof obj !== 'object' || Array.isArray(obj)) throw 0;
+    if (!confirm('Replace current progress with imported file?')) return;
+    read = obj; save(); paint();
+  } catch (e) { alert('That file could not be imported.'); }
+  file.value = '';
+};
+
+new ResizeObserver(relayout).observe(grid);
+paint(); relayout();
+</script>
+</body>
+</html>
