@@ -44,6 +44,8 @@ dialog h2{font-size:16px;margin:0 0 10px}
 dialog input{width:100%;font:inherit;padding:8px;background:#0d1117;color:var(--fg);border:1px solid #30363d;border-radius:6px;color-scheme:dark}
 .row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
 .row button{flex:1}
+.hint{font-size:12px;color:var(--mut);margin:10px 0 0;min-height:1em}
+#sacct{margin:0;word-break:break-all}
 </style>
 </head>
 <body>
@@ -65,6 +67,7 @@ dialog input{width:100%;font:inherit;padding:8px;background:#0d1117;color:var(--
   <button id="exp">Export</button>
   <button id="imp">Import</button>
   <input type="file" id="file" accept="application/json" hidden>
+  <button id="sync" hidden></button>
   <button id="mode"></button>
   <div class="seg" id="rangeSeg" hidden><button data-r="w">1W</button><button data-r="m">1M</button><button data-r="q">3M</button><button data-r="y">12M</button></div>
 </footer>
@@ -79,7 +82,36 @@ dialog input{width:100%;font:inherit;padding:8px;background:#0d1117;color:var(--
   </div>
 </dialog>
 
+<dialog id="sdlg">
+  <h2>Sync progress</h2>
+  <div id="s-email">
+    <div id="sgwrap" hidden>
+      <div class="row" style="margin:0 0 12px"><button id="sgoogle">Continue with Google</button></div>
+      <p class="hint" style="margin:0 0 10px">or use your email</p>
+    </div>
+    <input type="email" id="semail" placeholder="you@example.com" autocomplete="email" inputmode="email">
+    <div class="row"><button id="sendcode">Email me a code</button><button class="sclose">Cancel</button></div>
+    <p class="hint">No password. Use the same email on any device to bring your progress back.</p>
+  </div>
+  <div id="s-code" hidden>
+    <input id="scode" placeholder="Code from the email" autocomplete="one-time-code" inputmode="numeric">
+    <div class="row"><button id="verify">Verify</button><button id="sback">Back</button></div>
+  </div>
+  <div id="s-acct" hidden>
+    <p id="sacct"></p>
+    <div class="row"><button id="snow">Sync now</button><button id="sout">Sign out</button><button class="sclose">Close</button></div>
+  </div>
+  <p class="hint" id="smsg"></p>
+</dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+
 <script>
+// ---- cloud sync config: Supabase dashboard -> Project Settings -> API ----
+// The anon / publishable key is designed to be public; row-level security keeps each person's data private.
+const SUPABASE_URL = 'https://rsnykafgrpctfpypemzq.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzbnlrYWZncnBjdGZweXBlbXpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM0MjA2NDcsImV4cCI6MjEwODk5NjY0N30.S5xBwgimP_XlXrzcMP2pDHHtgXKiZDlchpsRkpJ7bmI';
+
 // name | category | verses per chapter
 const RAW = `Genesis|ot|31,25,24,26,32,22,24,22,29,32,32,20,18,24,21,16,27,33,38,18,34,24,20,67,34,35,46,22,35,43,55,32,20,31,29,43,36,30,23,23,57,38,34,34,28,34,31,22,33,26
 Exodus|ot|22,25,22,31,23,30,25,32,35,29,10,51,22,31,27,36,16,27,25,26,36,31,33,18,40,37,21,43,46,38,18,35,23,35,35,38,29,31,43,38
@@ -164,7 +196,18 @@ RAW.trim().split('\n').forEach((line, bi) => {
 const KEY = 'bibleReadV1';
 let read = {};
 try { read = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { read = {}; }
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(read)); } catch (e) {} };
+// ts[key] = time (ms) each chapter was last changed, including un-reads, so devices can merge.
+const TS_KEY = 'bibleTsV1';
+let ts = {};
+try { ts = JSON.parse(localStorage.getItem(TS_KEY) || '{}'); } catch (e) { ts = {}; }
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(read)); localStorage.setItem(TS_KEY, JSON.stringify(ts)); } catch (e) {} };
+Object.keys(read).forEach(k => { if (!ts[k]) ts[k] = 1; });   // progress saved before sync existed
+let onLocalChange = () => {};
+function setRead(key, date) {          // date = 'YYYY-MM-DD', or null for unread
+  if (date) read[key] = date; else delete read[key];
+  ts[key] = Date.now();
+  save(); onLocalChange();
+}
 try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
 const today = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD, local
 const fmt = d => new Date(d + 'T00:00:00').toLocaleDateString(undefined, {day:'numeric', month:'short', year:'numeric'});
@@ -306,8 +349,8 @@ function showInfo(i) {
 }
 function toggle(i) {
   const c = chapters[i];
-  if (read[c.key]) delete read[c.key]; else read[c.key] = today();
-  save(); paint(); showInfo(i);
+  setRead(c.key, read[c.key] ? null : today());
+  paint(); showInfo(i);
 }
 
 // ---- date dialog ----
@@ -320,8 +363,8 @@ function openEdit(i) {
   ddate.value = read[c.key] || today();
   dlg.showModal();
 }
-document.getElementById('dsave').onclick = () => { if (ddate.value) { read[chapters[editing].key] = ddate.value; save(); paint(); showInfo(editing); } dlg.close(); };
-document.getElementById('dunread').onclick = () => { delete read[chapters[editing].key]; save(); paint(); showInfo(editing); dlg.close(); };
+document.getElementById('dsave').onclick = () => { if (ddate.value) { setRead(chapters[editing].key, ddate.value); paint(); showInfo(editing); } dlg.close(); };
+document.getElementById('dunread').onclick = () => { setRead(chapters[editing].key, null); paint(); showInfo(editing); dlg.close(); };
 document.getElementById('dcancel').onclick = () => dlg.close();
 
 // ---- daily view ----
@@ -525,10 +568,146 @@ file.onchange = async () => {
     const obj = JSON.parse(await file.files[0].text());
     if (typeof obj !== 'object' || Array.isArray(obj)) throw 0;
     if (!confirm('Replace current progress with imported file?')) return;
-    read = obj; save(); paint();
+    const now = Date.now();
+    new Set([...Object.keys(read), ...Object.keys(obj)]).forEach(k => { ts[k] = now; });
+    read = obj; save(); onLocalChange(); refreshView();
   } catch (e) { alert('That file could not be imported.'); }
   file.value = '';
 };
+
+// ---- cloud sync (Supabase) ----
+// Local-first: the app always works from this device's storage. When signed in, each change is
+// pushed (debounced) and the cloud copy is pulled on open, on return to the tab, and when back online.
+// Per chapter, the most recent change wins (un-reads are kept as timestamped entries).
+const sbtn = document.getElementById('sync'), sdlg = document.getElementById('sdlg');
+const $ = id => document.getElementById(id);
+const sbEnabled = !!(SUPABASE_URL && SUPABASE_KEY && window.supabase);
+let sb = null, user = null, syncing = false, again = false, pushTimer = null, lastSync = null, syncErr = '', pendingEmail = '';
+
+function refreshView() { if (view === 'daily') relayout(); else paint(); }
+const hhmm = d => d.toLocaleTimeString(undefined, {hour: '2-digit', minute: '2-digit'});
+
+function snapshot() {
+  const o = {};
+  new Set([...Object.keys(read), ...Object.keys(ts)]).forEach(k => { o[k] = [read[k] || null, ts[k] || 0]; });
+  return o;
+}
+function sameSnap(a, b) {
+  const ka = Object.keys(a), kb = Object.keys(b || {});
+  if (ka.length !== kb.length) return false;
+  return ka.every(k => b[k] && a[k][0] === b[k][0] && a[k][1] === b[k][1]);
+}
+function mergeRemote(remote) {
+  let changed = false;
+  Object.keys(remote || {}).forEach(k => {
+    const e = remote[k]; if (!Array.isArray(e)) return;
+    const d = e[0], t = +e[1] || 0;
+    if (t > (ts[k] || 0)) { if (d) read[k] = d; else delete read[k]; ts[k] = t; changed = true; }
+  });
+  return changed;
+}
+
+async function syncNow() {
+  if (!sb || !user) return;
+  if (syncing) { again = true; return; }
+  if (navigator.onLine === false) { syncErr = 'Offline — will sync when back online'; updateSyncUI(); return; }
+  syncing = true; syncErr = ''; updateSyncUI();
+  try {
+    let done = false;
+    for (let attempt = 0; attempt < 4 && !done; attempt++) {
+      const got = await sb.from('progress').select('data,rev').eq('user_id', user.id).maybeSingle();
+      if (got.error) throw got.error;
+      const row = got.data;
+      if (row && mergeRemote(row.data)) { save(); refreshView(); }
+      const snap = snapshot();
+      if (row && sameSnap(snap, row.data)) { done = true; break; }
+      if (!row) {
+        const ins = await sb.from('progress').insert({user_id: user.id, data: snap, rev: 1});
+        if (ins.error) { if (ins.error.code === '23505') continue; throw ins.error; }   // another device created it first: retry
+        done = true;
+      } else {
+        const upd = await sb.from('progress')
+          .update({data: snap, rev: row.rev + 1, updated_at: new Date().toISOString()})
+          .eq('user_id', user.id).eq('rev', row.rev).select('rev');
+        if (upd.error) throw upd.error;
+        if (upd.data && upd.data.length) done = true;                                   // else: changed under us, retry
+      }
+    }
+    if (!done) throw new Error('Busy — will retry');
+    lastSync = new Date();
+  } catch (e) {
+    syncErr = (e && e.message) ? e.message : String(e);
+  } finally {
+    syncing = false; updateSyncUI();
+    if (again) { again = false; setTimeout(syncNow, 0); }
+  }
+}
+
+onLocalChange = () => { if (!user) return; clearTimeout(pushTimer); pushTimer = setTimeout(syncNow, 1200); };
+
+function showStep(s) {
+  $('s-email').hidden = s !== 'email'; $('s-code').hidden = s !== 'code'; $('s-acct').hidden = s !== 'acct';
+  $('smsg').textContent = '';
+}
+function updateSyncUI() {
+  if (!sbEnabled) { sbtn.hidden = true; return; }
+  sbtn.hidden = false;
+  sbtn.textContent = !user ? '☁ Sign in to sync' : syncing ? '☁ Syncing…' : syncErr ? '☁ Sync problem' : lastSync ? '☁ Synced ' + hhmm(lastSync) : '☁ Sync';
+  if (user) {
+    $('sacct').textContent = (user.email || 'Signed in') + (syncErr ? ' — ' + syncErr : lastSync ? ' — synced ' + hhmm(lastSync) : '');
+    if (sdlg.open && $('s-acct').hidden) showStep('acct');
+  }
+}
+
+if (sbEnabled) {
+  try {
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {auth: {persistSession: true, autoRefreshToken: true, detectSessionInUrl: true}});
+    sb.auth.onAuthStateChange((event, session) => {
+      user = session ? session.user : null;
+      updateSyncUI();
+      if (user) setTimeout(syncNow, 0);      // not awaited here: calling Supabase inside this callback can deadlock
+    });
+  } catch (e) { sb = null; syncErr = String(e); }
+  sbtn.onclick = () => {
+    let saved = ''; try { saved = localStorage.getItem('bibleEmailV1') || ''; } catch (e) {}
+    $('semail').value = pendingEmail || saved;
+    showStep(user ? 'acct' : 'email'); updateSyncUI();
+    sdlg.showModal();
+  };
+  document.querySelectorAll('.sclose').forEach(b => { b.onclick = () => sdlg.close(); });
+  // Show "Continue with Google" only once the provider is switched on in Supabase.
+  try {
+    fetch(SUPABASE_URL + '/auth/v1/settings', {headers: {apikey: SUPABASE_KEY}})
+      .then(r => r.json()).then(j => { $('sgwrap').hidden = !(j && j.external && j.external.google); }).catch(() => {});
+  } catch (e) {}
+  $('sgoogle').onclick = async () => {
+    $('smsg').textContent = 'Opening Google…';
+    const r = await sb.auth.signInWithOAuth({provider: 'google', options: {redirectTo: location.origin + location.pathname}});
+    if (r.error) $('smsg').textContent = r.error.message;
+  };
+  $('sendcode').onclick = async () => {
+    const email = $('semail').value.trim(); if (!email) return;
+    $('smsg').textContent = 'Sending…';
+    const r = await sb.auth.signInWithOtp({email, options: {shouldCreateUser: true}});
+    if (r.error) { $('smsg').textContent = r.error.message; return; }
+    pendingEmail = email; try { localStorage.setItem('bibleEmailV1', email); } catch (e) {}
+    showStep('code'); $('smsg').textContent = 'Email sent to ' + email + ' — enter the code from it, or open its link in this browser. Check spam if it is missing.';
+    $('scode').value = ''; $('scode').focus();
+  };
+  $('sback').onclick = () => showStep('email');
+  $('verify').onclick = async () => {
+    const token = $('scode').value.replace(/\s+/g, ''); if (!token) return;
+    $('smsg').textContent = 'Checking…';
+    const r = await sb.auth.verifyOtp({email: pendingEmail, token, type: 'email'});
+    if (r.error) { $('smsg').textContent = r.error.message; return; }
+    sdlg.close();
+  };
+  $('snow').onclick = () => { syncNow(); };
+  $('sout').onclick = async () => { await sb.auth.signOut(); user = null; lastSync = null; syncErr = ''; sdlg.close(); updateSyncUI(); };
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && user) syncNow(); });
+  window.addEventListener('online', () => { if (user) syncNow(); });
+}
+updateSyncUI();
 
 new ResizeObserver(relayout).observe(grid);
 paint(); relayout();
