@@ -505,8 +505,23 @@ function dailyModel(W, H, r, now) {
 }
 // ---- end daily ----
 
-const MAX_DAY = 85;   // verses in a day at (or above) which the colour is at its brightest
-const dayColor = p => 'color-mix(in srgb, #39d353 ' + (Math.min(p, MAX_DAY) / MAX_DAY * 100).toFixed(1) + '%, #0e4429)';
+// Colour scale (what the legend shows): six steps, empty then five greens.
+const SCALE = [0, 10, 30, 50, 70, 85];
+const dayColor = p => 'color-mix(in srgb, #39d353 ' + (Math.min(p, 85) / 85 * 100).toFixed(1) + '%, #0e4429)';
+// Which of the five levels a day gets: the busiest day shown is level 5; the others are spread over 1-4
+// by how many of the shown reading days (by verses) they beat.
+function dayLevels(values) {
+  const v = values.filter(x => x > 0).sort((a, b) => a - b), n = v.length;
+  if (!n) return () => 0;
+  const max = v[n - 1];
+  return p => {
+    if (!p) return 0;
+    if (p >= max) return 5;
+    let below = 0; while (below < n && v[below] < p) below++;       // days with fewer verses
+    return Math.min(4, 1 + Math.floor(below / n * 4));
+  };
+}
+const levelColor = L => L ? dayColor(SCALE[L]) : '';
 
 function dailyTotals() {
   if (viewDays) return {pts: viewDays, list: {}};
@@ -531,6 +546,7 @@ function drawDaily(W, H) {
   const m = dailyModel(W, H, range, new Date());
   const {pts, list} = dailyTotals();
   const step = m.s + m.g, off = (m.s - 12) / 2;
+  const lvl = dayLevels(m.cells.map(c => pts[c.date] || 0));
   const frag = document.createDocumentFragment();
   let total = 0, active = 0;   // total = chapters read in range
   const label = (txt, x, y, w, align) => {
@@ -548,7 +564,7 @@ function drawDaily(W, H) {
     d.className = 'd' + (c.isToday ? ' today' : '');
     d.dataset.date = c.date;
     d.style.cssText = 'left:' + x + 'px;top:' + y + 'px;width:' + m.s + 'px;height:' + m.s + 'px;' +
-      (p ? 'background:' + dayColor(p) + ';' : '');
+      (p ? 'background:' + levelColor(lvl(p)) + ';' : '');
     frag.appendChild(d);
   });
   // month labels
@@ -622,7 +638,7 @@ function setRange(r) {
 }
 document.getElementById('viewSeg').onclick = e => { const b = e.target.closest('button'); if (b) setView(b.dataset.v); };
 document.getElementById('rangeSeg').onclick = e => { const b = e.target.closest('button'); if (b) setRange(b.dataset.r); };
-document.getElementById('scale').innerHTML = [0, 10, 30, 50, 70, 85].map(p =>
+document.getElementById('scale').innerHTML = SCALE.map(p =>
   '<i style="background:' + (p ? dayColor(p) : 'var(--empty)') + '"></i>').join('');
 grid.addEventListener('pointerover', e => { if (e.pointerType === 'mouse') { const d = e.target.closest('.d'); if (d) showDay(d.dataset.date); } });
 grid.addEventListener('click', e => { const d = e.target.closest('.d'); if (d) showDay(d.dataset.date); });
