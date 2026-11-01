@@ -1048,7 +1048,10 @@ if (viewToken) {
   $('vstat').hidden = false;
   $('vbanner').hidden = false;
   try { document.documentElement.classList.add('viewing'); document.body.classList.add('viewing'); } catch (e) {}
-  $('vhome').onclick = () => { location.assign(location.pathname); location.reload(); };
+  $('vhome').onclick = () => {      // drop #share=… from the address, then load the page fresh
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { location.hash = ''; }
+    location.reload();
+  };
   if (!sbEnabled) vShow('Sharing isn’t available right now.');
   else {
     sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {auth: {persistSession: true, autoRefreshToken: true, detectSessionInUrl: false}});
