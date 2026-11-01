@@ -4,10 +4,38 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0d1117">
+<script>
+(function () {   // set the theme before anything paints: dark unless the person chose Light, or Auto and the phone is light
+  try {
+    var t = localStorage.getItem('bibleThemeV1');
+    var light = t === 'light' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches);
+    document.documentElement.setAttribute('data-theme', light ? 'light' : 'dark');
+  } catch (e) {}
+})();
+</script>
 <title>Bible Reading Tracker</title>
 <style>
 :root{--bg:#0d1117;--fg:#e6edf3;--mut:#8b949e;--empty:#161b22;--line:rgba(255,255,255,.13);
---ot:#2ea043;--wis:#d29922;--gos:#a371f7;--nt:#58a6ff}
+--ot:#2ea043;--wis:#d29922;--gos:#a371f7;--nt:#58a6ff;
+--g-law:#2ea043;--g-hist:#d29922;--g-wis:#e07b39;--g-maj:#e5534b;--g-min:#d6609f;--g-gos:#a371f7;--g-acts:#39c5cf;--g-paul:#58a6ff;--g-gen:#6c71e0;--g-rev:#b8e986}
+html[data-theme=light]{--bg:#ffffff;--fg:#1f2328;--mut:#656d76;--empty:#ebedf0;--line:rgba(0,0,0,.14);--ot:#1a7f37;--wis:#bf8700;--gos:#8250df;--nt:#0969da;
+--g-law:#1a7f37;--g-hist:#bf8700;--g-wis:#c4541c;--g-maj:#cf222e;--g-min:#bf3989;--g-gos:#8250df;--g-acts:#0e8a96;--g-paul:#0969da;--g-gen:#4c51c9;--g-rev:#5a8f1a}
+html[data-theme=light] .c{box-shadow:inset 0 0 0 1px rgba(0,0,0,.05)}
+html[data-theme=light] .c.r{box-shadow:none}
+html[data-theme=light] .c.sel,html[data-theme=light] .d.sel{outline-color:#1f2328}
+html[data-theme=light] .d{box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
+html[data-theme=light] .d.today{box-shadow:inset 0 0 0 1px rgba(0,0,0,.6)}
+html[data-theme=light] button,html[data-theme=light] #canon{background:#f6f8fa;color:#1f2328;border-color:#d0d7de}
+html[data-theme=light] button:active{background:#eaeef2}
+html[data-theme=light] .seg button.on{background:#ddf4ff;border-color:#0969da;color:#0550ae}
+html[data-theme=light] #q,html[data-theme=light] dialog input,html[data-theme=light] dialog select{background:#fff;color:#1f2328;border-color:#d0d7de;color-scheme:light}
+html[data-theme=light] dialog{background:#fff;color:#1f2328;border-color:#d0d7de}
+html[data-theme=light] .shitem{border-color:#d0d7de}
+html[data-theme=light] #vbanner{background:#ddf4ff;border-color:#54aeff}
+html[data-theme=light] #vhint{color:#0550ae}
+html[data-theme=light].viewing,html[data-theme=light] body.viewing{background:#f0f7ff}
+html[data-theme=light] .tile{background:#f6f8fa;border-color:#d0d7de}
+html[data-theme=light] .tile:active{background:#eaeef2}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font:14px system-ui,-apple-system,sans-serif;overscroll-behavior:none}
 body{display:flex;flex-direction:column;padding:max(8px,env(safe-area-inset-top)) 8px max(8px,env(safe-area-inset-bottom))}
@@ -92,12 +120,7 @@ body.viewing #grid{border:1px dashed #388bfd;border-radius:6px}
   <h1 id="h1">Bible Reading</h1>
   <div class="seg" id="viewSeg"><button data-v="chapters">Chapters</button><button data-v="daily">Daily</button><button data-v="people" id="tabPeople" hidden>People</button></div>
   <span id="stats"></span>
-  <div class="legend" id="legendCh">
-    <span><i style="background:var(--ot)"></i>Old Testament</span>
-    <span><i style="background:var(--wis)"></i>Wisdom</span>
-    <span><i style="background:var(--gos)"></i>Gospels</span>
-    <span><i style="background:var(--nt)"></i>New Testament</span>
-  </div>
+  <div class="legend" id="legendCh"></div>
   <div class="legend" id="legendDay" hidden><span>Less</span><span id="scale"></span><span>More</span></div>
 </header>
 <form id="qform" autocomplete="off"><input id="q" type="search" enterkeyhint="search" autocapitalize="off" spellcheck="false" placeholder="Search a book or chapter, e.g. John 3"></form>
@@ -108,6 +131,8 @@ body.viewing #grid{border:1px dashed #388bfd;border-radius:6px}
   <button id="share" hidden>Share</button>
   <span class="hint" id="vstat" style="margin:0" hidden></span>
   <select id="canon"></select>
+  <button id="colors"></button>
+  <button id="theme"></button>
   <button id="mode"></button>
   <div class="seg" id="rangeSeg" hidden><button data-r="w">1W</button><button data-r="m">1M</button><button data-r="q">3M</button><button data-r="y">12M</button></div>
 </footer>
@@ -231,7 +256,24 @@ James|nt|27,26,18,17,20
 Jude|nt|25
 Revelation|nt|20,29,22,11,14,17,17,13,21,11,19,17,18,20,8,21,18,24,21,15,27,21`;
 
-const COLORS = {ot:'var(--ot)', wis:'var(--wis)', gos:'var(--gos)', nt:'var(--nt)'};
+// Colouring. Simple = Old / New Testament. Detailed = ten groups (the extra Catholic books join the nearest group).
+const GROUPS = [
+  ['law', 'The Law', 'Genesis,Exodus,Leviticus,Numbers,Deuteronomy'],
+  ['hist', 'Historical', 'Joshua,Judges,Ruth,1 Samuel,2 Samuel,1 Kings,2 Kings,1 Chronicles,2 Chronicles,Ezra,Nehemiah,Esther,Tobit,Judith,1 Maccabees,2 Maccabees'],
+  ['wis', 'Wisdom & Poetry', 'Job,Psalms,Proverbs,Ecclesiastes,Song of Songs,Wisdom,Sirach'],
+  ['maj', 'Major Prophets', 'Isaiah,Jeremiah,Lamentations,Ezekiel,Daniel,Baruch'],
+  ['min', 'Minor Prophets', 'Hosea,Joel,Amos,Obadiah,Jonah,Micah,Nahum,Habakkuk,Zephaniah,Haggai,Zechariah,Malachi'],
+  ['gos', 'Gospels', 'Matthew,Mark,Luke,John'],
+  ['acts', 'Acts', 'Acts'],
+  ['paul', 'Paul’s Letters', 'Romans,1 Corinthians,2 Corinthians,Galatians,Ephesians,Philippians,Colossians,1 Thessalonians,2 Thessalonians,1 Timothy,2 Timothy,Titus,Philemon'],
+  ['gen', 'General Letters', 'Hebrews,James,1 Peter,2 Peter,1 John,2 John,3 John,Jude'],
+  ['rev', 'Revelation', 'Revelation']
+];
+const GROUP_OF = {}; GROUPS.forEach(g => g[2].split(',').forEach(n => { GROUP_OF[n] = g[0]; }));
+const COLOR_KEY = 'bibleColorsV1';
+let cmode = 'simple';
+try { if (localStorage.getItem(COLOR_KEY) === 'detailed') cmode = 'detailed'; } catch (e) {}
+const colorOf = c => cmode === 'simple' ? (c.cat === 'nt' || c.cat === 'gos' ? 'var(--nt)' : 'var(--ot)') : 'var(--g-' + GROUP_OF[c.book] + ')';
 const sizeOf = v => v <= 15 ? 1 : v <= 30 ? 2 : 3;   // S / M / L
 
 // Extra books of the Catholic canon. Their keys (66-72) never change, so saved progress stays valid.
@@ -387,7 +429,7 @@ function draw(res) {
     const d = document.createElement('div');
     d.className = 'c' + (r.cl ? ' cl' : '') + (r.cr ? ' cr' : '');
     d.dataset.i = r.i;
-    d.style.cssText = '--col:' + COLORS[chapters[r.i].cat] + ';left:' + r.x + 'px;top:' + r.y + 'px;width:' + r.w + 'px;height:' + r.h + 'px';
+    d.style.cssText = '--col:' + colorOf(chapters[r.i]) + ';left:' + r.x + 'px;top:' + r.y + 'px;width:' + r.w + 'px;height:' + r.h + 'px';
     segs[r.i].push(d); frag.appendChild(d);
   });
   res.lines.forEach(l => {
@@ -512,7 +554,8 @@ function dailyModel(W, H, r, now) {
 
 // Colour scale (what the legend shows): six steps, empty then five greens.
 const SCALE = [0, 10, 30, 50, 70, 85];
-const dayColor = p => 'color-mix(in srgb, #39d353 ' + (Math.min(p, 85) / 85 * 100).toFixed(1) + '%, #0e4429)';
+const isLight = () => { try { return document.documentElement.getAttribute('data-theme') === 'light'; } catch (e) { return false; } };
+const dayColor = p => 'color-mix(in srgb, #39d353 ' + (Math.min(p, 85) / 85 * 100).toFixed(1) + '%, ' + (isLight() ? '#c9ecd2' : '#0e4429') + ')';
 // Which of the five levels a day gets: the busiest day shown is level 5; the others are spread over 1-4
 // by how many of the shown reading days (by verses) they beat.
 function dayLevels(values) {
@@ -619,6 +662,7 @@ function applyViewUI() {
   document.getElementById('rangeSeg').hidden = !daily;
   modeBtn.hidden = daily || people;
   $('canon').hidden = daily || people || !!viewToken;
+  $('colors').hidden = daily || people;
   $('qform').hidden = view !== 'chapters' || (viewToken && vLevel === 'daily');
   grid.style.touchAction = '';
   document.querySelectorAll('#viewSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === view));
@@ -643,8 +687,11 @@ function setRange(r) {
 }
 document.getElementById('viewSeg').onclick = e => { const b = e.target.closest('button'); if (b) setView(b.dataset.v); };
 document.getElementById('rangeSeg').onclick = e => { const b = e.target.closest('button'); if (b) setRange(b.dataset.r); };
-document.getElementById('scale').innerHTML = SCALE.map(p =>
+const renderScale = () => {
+  document.getElementById('scale').innerHTML = SCALE.map(p =>
   '<i style="background:' + (p ? dayColor(p) : 'var(--empty)') + '"></i>').join('');
+};
+renderScale();
 grid.addEventListener('pointerover', e => { if (e.pointerType === 'mouse') { const d = e.target.closest('.d'); if (d) showDay(d.dataset.date); } });
 grid.addEventListener('click', e => { const d = e.target.closest('.d'); if (d) showDay(d.dataset.date); });
 applyViewUI();
@@ -800,6 +847,25 @@ if (!viewToken && sbEnabled) {
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && user) syncNow(); });
   window.addEventListener('online', () => { if (user) syncNow(); });
 }
+
+// ---- colour mode ----
+const cbtn = $('colors');
+function renderLegend() {
+  const items = cmode === 'simple' ? [['var(--ot)', 'Old Testament'], ['var(--nt)', 'New Testament']]
+    : GROUPS.map(g => ['var(--g-' + g[0] + ')', g[1]]);
+  const box = $('legendCh'); box.textContent = '';
+  items.forEach(it => {
+    const sp = document.createElement('span'), i = document.createElement('i');
+    i.style.background = it[0]; sp.appendChild(i); sp.appendChild(document.createTextNode(it[1])); box.appendChild(sp);
+  });
+  cbtn.textContent = 'Colours: ' + (cmode === 'simple' ? 'Simple' : 'Detailed');
+}
+cbtn.onclick = () => {
+  cmode = cmode === 'simple' ? 'detailed' : 'simple';
+  try { localStorage.setItem(COLOR_KEY, cmode); } catch (e) {}
+  renderLegend(); relayout();
+};
+renderLegend();
 
 // ---- canon selector ----
 $('canon').innerHTML = Object.keys(CANONS).map(k => '<option value="' + k + '">' + CANONS[k].label + '</option>').join('');
@@ -1075,6 +1141,28 @@ if (viewToken) {
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') loadShared(); });
   }
 }
+
+// ---- theme: Dark (default) / Light / Auto (follows the phone) ----
+const THEME_KEY = 'bibleThemeV1', THEME_LABEL = {dark: 'Dark', light: 'Light', auto: 'Auto'};
+let themePref = 'dark';
+try { const t = localStorage.getItem(THEME_KEY); if (t === 'light' || t === 'auto') themePref = t; } catch (e) {}
+const phoneLight = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches); } catch (e) { return false; } };
+function applyTheme() {
+  const light = themePref === 'light' || (themePref === 'auto' && phoneLight());
+  try {
+    document.documentElement.setAttribute('data-theme', light ? 'light' : 'dark');
+    const m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', light ? '#ffffff' : '#0d1117');
+  } catch (e) {}
+  $('theme').textContent = 'Theme: ' + THEME_LABEL[themePref];
+  renderScale(); relayout();
+}
+$('theme').onclick = () => {
+  themePref = themePref === 'dark' ? 'light' : themePref === 'light' ? 'auto' : 'dark';
+  try { localStorage.setItem(THEME_KEY, themePref); } catch (e) {}
+  applyTheme();
+};
+try { window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { if (themePref === 'auto') applyTheme(); }); } catch (e) {}
+$('theme').textContent = 'Theme: ' + THEME_LABEL[themePref];
 
 updateSyncUI();
 
