@@ -355,7 +355,7 @@ const info = document.getElementById('info');
 // "By length": one continuous strip wrapped to the chart width. A chapter that
 // doesn't fit at the end of a row is split and continues on the next row.
 function layoutLength(u, W) {
-  const g = Math.max(1, Math.round(u * 0.2)), sep = g * 2 + 1, minSeg = Math.max(3, u * 0.35);
+  const g = Math.max(1, u * 0.2), sep = g * 2 + 1, minSeg = Math.max(3, u * 0.35);
   const rects = [], lines = [];
   let x = 0, y = 0;
   const nextRow = () => { x = 0; y += u + g; };
@@ -455,7 +455,7 @@ function relayout() {
   else {
     let lo = 5, hi = 48;
     if (layoutLength(lo, W).h <= H) {
-      for (let k = 0; k < 14; k++) {
+      for (let k = 0; k < 16; k++) {
         const mid = (lo + hi) / 2;
         if (layoutLength(mid, W).h <= H) lo = mid; else hi = mid;
       }
