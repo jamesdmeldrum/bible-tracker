@@ -409,8 +409,8 @@ function layoutFixed(W, H) {
 
 // ---- mode ----
 const MODE_KEY = 'bibleModeV1';
-let mode = 'length';
-try { mode = localStorage.getItem(MODE_KEY) === 'fixed' ? 'fixed' : 'length'; } catch (e) {}
+let mode = 'fixed';
+try { mode = localStorage.getItem(MODE_KEY) === 'length' ? 'length' : 'fixed'; } catch (e) {}
 const modeBtn = document.getElementById('mode');
 const setModeLabel = () => { modeBtn.textContent = mode === 'length' ? 'Size: by length' : 'Size: fixed'; };
 modeBtn.onclick = () => {
