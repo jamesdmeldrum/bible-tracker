@@ -58,6 +58,11 @@ dialog .chk input{width:20px;height:20px;margin:0;padding:0;flex:0 0 auto}
 #sacct{margin:0;word-break:break-all}
 .c.hl{box-shadow:0 0 0 2px #ffd33d,0 0 10px 3px rgba(255,211,61,.85);z-index:3}
 #canon{font:inherit;color:var(--fg);background:#21262d;border:1px solid #30363d;border-radius:6px;padding:6px 8px;max-width:48vw}
+#sync .cyc{display:inline-grid}
+#sync .cyc>span{grid-area:1/1;text-align:center;animation:cyc 10s ease-in-out infinite}
+#sync .cyc>span:nth-child(2){animation-delay:-5s}
+@keyframes cyc{0%,40%{opacity:1}50%,90%{opacity:0}100%{opacity:1}}
+@media (prefers-reduced-motion:reduce){#sync .cyc>span{animation:none}#sync .cyc>span:nth-child(2){opacity:0}}
 #qform{margin:0 0 6px}
 #q{width:100%;font:inherit;padding:7px 10px;background:#0d1117;color:var(--fg);border:1px solid #30363d;border-radius:6px;color-scheme:dark}
 #q:focus{outline:none;border-color:#ffd33d}
@@ -750,6 +755,15 @@ function showStep(s) {
   $('s-in').hidden = s !== 'in'; $('s-acct').hidden = s !== 'acct';
   $('smsg').textContent = '';
 }
+// Signed out: the button text slowly cross-fades between two messages. Both sit in the same grid cell,
+// so the button is always as wide as the longer one and never changes size.
+function setCycle() {
+  if (sbtn.dataset.cyc) return;
+  sbtn.dataset.cyc = '1'; sbtn.textContent = '';
+  const w = document.createElement('span'); w.className = 'cyc';
+  ['☁ Sign in to sync', '☁ Sign in to share'].forEach(t => { const e = document.createElement('span'); e.textContent = t; w.appendChild(e); });
+  sbtn.appendChild(w);
+}
 function updateSyncUI() {
   if (!sbEnabled || viewToken) { sbtn.hidden = true; return; }
   sbtn.hidden = false;
@@ -757,8 +771,9 @@ function updateSyncUI() {
   $('tabPeople').hidden = !user;
   $('viewSeg').classList.toggle('two', !user);
   if (!user && view === 'people') setView('chapters');
-  sbtn.textContent = !user ? '☁ Sign in to sync' : syncing ? '☁ Syncing…' : syncErr ? '☁ Sync problem' : lastSync ? '☁ Synced ' + hhmm(lastSync) : '☁ Sync';
+  if (!user) setCycle(); else sbtn.textContent = syncing ? '☁ Syncing…' : syncErr ? '☁ Sync problem' : lastSync ? '☁ Synced ' + hhmm(lastSync) : '☁ Sync';
   if (user) {
+    delete sbtn.dataset.cyc;
     $('sacct').textContent = (user.email || 'Signed in') + (syncErr ? ' — ' + syncErr : lastSync ? ' — synced ' + hhmm(lastSync) : '');
     if (sdlg.open && $('s-acct').hidden) showStep('acct');
   }
