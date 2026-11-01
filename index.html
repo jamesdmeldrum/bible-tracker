@@ -45,12 +45,25 @@ dialog input{width:100%;font:inherit;padding:8px;background:#0d1117;color:var(--
 .row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
 .row button{flex:1}
 .hint{font-size:12px;color:var(--mut);margin:10px 0 0;min-height:1em}
+dialog select{width:100%;font:inherit;padding:8px;background:#0d1117;color:var(--fg);border:1px solid #30363d;border-radius:6px;margin-top:8px;color-scheme:dark}
+#shdlg{max-height:85vh;overflow-y:auto}
+#shdlg input{margin-top:8px}
+.shstate{display:flex;align-items:center;justify-content:space-between;gap:8px;font-weight:600}
+.shitem{border:1px solid #30363d;border-radius:8px;padding:8px 10px;margin-top:8px}
+.shitem.off{opacity:.55}
+.shtitle{font-weight:600}
+.bk{display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:12px}
+.bk b{flex:0 0 112px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bk .bar{flex:1;height:8px;border-radius:4px;background:var(--empty);overflow:hidden}
+.bk .bar i{display:block;height:100%}
+.bk span{flex:0 0 54px;text-align:right;color:var(--mut)}
+.bigstat{font-size:30px;font-weight:700;margin:6px 0 14px}
 #sacct{margin:0;word-break:break-all}
 </style>
 </head>
 <body>
 <header>
-  <h1>Bible Reading</h1>
+  <h1 id="h1">Bible Reading</h1>
   <div class="seg" id="viewSeg"><button data-v="chapters">Chapters</button><button data-v="daily">Daily</button></div>
   <span id="stats"></span>
   <div class="legend" id="legendCh">
@@ -68,6 +81,8 @@ dialog input{width:100%;font:inherit;padding:8px;background:#0d1117;color:var(--
   <button id="imp">Import</button>
   <input type="file" id="file" accept="application/json" hidden>
   <button id="sync" hidden></button>
+  <button id="share" hidden>Share</button>
+  <span class="hint" id="vstat" style="margin:0" hidden></span>
   <button id="mode"></button>
   <div class="seg" id="rangeSeg" hidden><button data-r="w">1W</button><button data-r="m">1M</button><button data-r="q">3M</button><button data-r="y">12M</button></div>
 </footer>
@@ -104,6 +119,22 @@ dialog input{width:100%;font:inherit;padding:8px;background:#0d1117;color:var(--
   <p class="hint" id="smsg"></p>
 </dialog>
 
+<dialog id="shdlg">
+  <h2>Share your progress</h2>
+  <div class="shstate"><span id="shstate"></span><button id="shtoggle"></button></div>
+  <input id="shname" placeholder="Name viewers see (e.g. James)" maxlength="40">
+  <div id="shlist"></div>
+  <p class="hint" style="margin-top:14px">New link — one per person, so you can pause or delete each separately:</p>
+  <input id="shlabel" placeholder="Who is it for? (only you see this)" maxlength="40">
+  <select id="shlevel">
+    <option value="chart">Chapters read, no dates</option>
+    <option value="full">Everything, including dates and daily chart</option>
+    <option value="summary">Summary only (totals and per-book)</option>
+  </select>
+  <div class="row"><button id="shnew">Create link</button><button id="shclose">Close</button></div>
+  <p class="hint" id="shmsg"></p>
+</dialog>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 
 <script>
@@ -111,6 +142,11 @@ dialog input{width:100%;font:inherit;padding:8px;background:#0d1117;color:var(--
 // The anon / publishable key is designed to be public; row-level security keeps each person's data private.
 const SUPABASE_URL = 'https://rsnykafgrpctfpypemzq.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzbnlrYWZncnBjdGZweXBlbXpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM0MjA2NDcsImV4cCI6MjEwODk5NjY0N30.S5xBwgimP_XlXrzcMP2pDHHtgXKiZDlchpsRkpJ7bmI';
+
+// A shared link looks like  <page address>#share=<token>  and opens a read-only live view.
+const shareMatch = typeof location !== 'undefined' ? /^#share=([A-Za-z0-9_-]{16,})$/.exec(location.hash) : null;
+const viewToken = shareMatch ? shareMatch[1] : '';
+let vLevel = null;   // viewer mode: detail level being shown ('summary' | 'chart' | 'full'), null until loaded
 
 // name | category | verses per chapter
 const RAW = `Genesis|ot|31,25,24,26,32,22,24,22,29,32,32,20,18,24,21,16,27,33,38,18,34,24,20,67,34,35,46,22,35,43,55,32,20,31,29,43,36,30,23,23,57,38,34,34,28,34,31,22,33,26
@@ -200,10 +236,12 @@ try { read = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { read =
 const TS_KEY = 'bibleTsV1';
 let ts = {};
 try { ts = JSON.parse(localStorage.getItem(TS_KEY) || '{}'); } catch (e) { ts = {}; }
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(read)); localStorage.setItem(TS_KEY, JSON.stringify(ts)); } catch (e) {} };
+if (viewToken) { read = {}; ts = {}; }   // viewers never see or touch this device's own progress
+const save = () => { if (viewToken) return; try { localStorage.setItem(KEY, JSON.stringify(read)); localStorage.setItem(TS_KEY, JSON.stringify(ts)); } catch (e) {} };
 Object.keys(read).forEach(k => { if (!ts[k]) ts[k] = 1; });   // progress saved before sync existed
 let onLocalChange = () => {};
 function setRead(key, date) {          // date = 'YYYY-MM-DD', or null for unread
+  if (viewToken) return;
   if (date) read[key] = date; else delete read[key];
   ts[key] = Date.now();
   save(); onLocalChange();
@@ -313,6 +351,7 @@ function draw(res) {
 function relayout() {
   const W = grid.clientWidth, H = grid.clientHeight;
   if (W < 50 || H < 50) return;
+  if (viewToken && vLevel !== 'chart' && vLevel !== 'full') return;   // viewer: nothing to chart yet / summary page
   if (view === 'daily') { drawDaily(W, H); return; }
   let res;
   if (mode === 'fixed') res = layoutFixed(W, H);
@@ -331,6 +370,7 @@ function relayout() {
 
 const TOTAL_VERSES = chapters.reduce((a, c) => a + c.verses, 0);
 function paint() {
+  if (viewToken && vLevel !== 'chart' && vLevel !== 'full') return;
   let n = 0, v = 0;
   chapters.forEach((c, i) => {
     const r = !!read[c.key];
@@ -345,7 +385,7 @@ function showInfo(i) {
   if (selected != null) segs[selected].forEach(e => e.classList.remove('sel'));
   selected = i; segs[i].forEach(e => e.classList.add('sel'));
   const d = read[c.key];
-  info.textContent = c.book + ' ' + c.ch + ' · ' + c.verses + ' verses · ' + (d ? 'read ' + fmt(d) : 'not read');
+  info.textContent = c.book + ' ' + c.ch + ' · ' + c.verses + ' verses · ' + (d ? (typeof d === 'string' ? 'read ' + fmt(d) : 'read') : 'not read');
 }
 function toggle(i) {
   const c = chapters[i];
@@ -357,7 +397,7 @@ function toggle(i) {
 const dlg = document.getElementById('dlg'), ddate = document.getElementById('ddate');
 let editing = null;
 function openEdit(i) {
-  if (dlg.open) return;
+  if (viewToken || dlg.open) return;
   editing = i; const c = chapters[i];
   document.getElementById('dtitle').textContent = c.book + ' ' + c.ch;
   ddate.value = read[c.key] || today();
@@ -507,7 +547,8 @@ function applyViewUI() {
   modeBtn.hidden = daily;
   document.querySelectorAll('#viewSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === view));
   document.querySelectorAll('#rangeSeg button').forEach(b => b.classList.toggle('on', b.dataset.r === range));
-  info.textContent = daily ? 'Tap a day to see what you read.' : 'Tap a chapter to see it. Double-tap to mark read. Long-press to edit date.';
+  info.textContent = viewToken ? (daily ? 'Tap a day to see what was read.' : 'Tap a chapter to see it.')
+    : daily ? 'Tap a day to see what you read.' : 'Tap a chapter to see it. Double-tap to mark read. Long-press to edit date.';
 }
 function setView(v) {
   if (v === view) return;
@@ -587,6 +628,12 @@ let sb = null, user = null, syncing = false, again = false, pushTimer = null, la
 function refreshView() { if (view === 'daily') relayout(); else paint(); }
 const hhmm = d => d.toLocaleTimeString(undefined, {hour: '2-digit', minute: '2-digit'});
 
+const stable = v => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x)) ? Object.fromEntries(Object.keys(x).sort().map(y => [y, x[y]])) : x);
+function computeSummary() {      // totals only; this is all a "summary" link ever reveals
+  let n = 0, v = 0; const books = {};
+  chapters.forEach(c => { if (read[c.key]) { n++; v += c.verses; const b = c.key.split(':')[0]; books[b] = (books[b] || 0) + 1; } });
+  return {chapters: n, verses: v, totalChapters: chapters.length, totalVerses: TOTAL_VERSES, books};
+}
 function snapshot() {
   const o = {};
   new Set([...Object.keys(read), ...Object.keys(ts)]).forEach(k => { o[k] = [read[k] || null, ts[k] || 0]; });
@@ -615,19 +662,19 @@ async function syncNow() {
   try {
     let done = false;
     for (let attempt = 0; attempt < 4 && !done; attempt++) {
-      const got = await sb.from('progress').select('data,rev').eq('user_id', user.id).maybeSingle();
+      const got = await sb.from('progress').select('data,rev,summary').eq('user_id', user.id).maybeSingle();
       if (got.error) throw got.error;
       const row = got.data;
       if (row && mergeRemote(row.data)) { save(); refreshView(); }
-      const snap = snapshot();
-      if (row && sameSnap(snap, row.data)) { done = true; break; }
+      const snap = snapshot(), sum = computeSummary();
+      if (row && sameSnap(snap, row.data) && stable(sum) === stable(row.summary)) { done = true; break; }
       if (!row) {
-        const ins = await sb.from('progress').insert({user_id: user.id, data: snap, rev: 1});
+        const ins = await sb.from('progress').insert({user_id: user.id, data: snap, summary: sum, rev: 1});
         if (ins.error) { if (ins.error.code === '23505') continue; throw ins.error; }   // another device created it first: retry
         done = true;
       } else {
         const upd = await sb.from('progress')
-          .update({data: snap, rev: row.rev + 1, updated_at: new Date().toISOString()})
+          .update({data: snap, summary: sum, rev: row.rev + 1, updated_at: new Date().toISOString()})
           .eq('user_id', user.id).eq('rev', row.rev).select('rev');
         if (upd.error) throw upd.error;
         if (upd.data && upd.data.length) done = true;                                   // else: changed under us, retry
@@ -650,8 +697,9 @@ function showStep(s) {
   $('smsg').textContent = '';
 }
 function updateSyncUI() {
-  if (!sbEnabled) { sbtn.hidden = true; return; }
+  if (!sbEnabled || viewToken) { sbtn.hidden = true; return; }
   sbtn.hidden = false;
+  $('share').hidden = !user;
   sbtn.textContent = !user ? '☁ Sign in to sync' : syncing ? '☁ Syncing…' : syncErr ? '☁ Sync problem' : lastSync ? '☁ Synced ' + hhmm(lastSync) : '☁ Sync';
   if (user) {
     $('sacct').textContent = (user.email || 'Signed in') + (syncErr ? ' — ' + syncErr : lastSync ? ' — synced ' + hhmm(lastSync) : '');
@@ -659,7 +707,7 @@ function updateSyncUI() {
   }
 }
 
-if (sbEnabled) {
+if (!viewToken && sbEnabled) {
   try {
     sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {auth: {persistSession: true, autoRefreshToken: true, detectSessionInUrl: true}});
     sb.auth.onAuthStateChange((event, session) => {
@@ -707,6 +755,163 @@ if (sbEnabled) {
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && user) syncNow(); });
   window.addEventListener('online', () => { if (user) syncNow(); });
 }
+// ---- sharing: owner side ----
+// A share link = a random token in the `shares` table. Viewers call one public database function with the token;
+// it returns only what that link's level allows, and nothing at all if sharing is off or the link is paused/deleted.
+const shdlg = $('shdlg');
+const LEVEL_NAMES = {summary: 'Summary only', chart: 'Chapters, no dates', full: 'Everything, with dates'};
+let shLinks = [], shOn = false;
+const shMsg = t => { $('shmsg').textContent = t || ''; };
+const linkUrl = t => location.origin + location.pathname + '#share=' + t;
+
+function shRender() {
+  $('shstate').textContent = shOn ? 'Sharing is ON' : 'Sharing is OFF';
+  $('shtoggle').textContent = shOn ? 'Turn off for everyone' : 'Turn on';
+  const box = $('shlist'); box.textContent = '';
+  if (!shLinks.length) {
+    const p = document.createElement('p'); p.className = 'hint'; p.textContent = 'No links yet.'; box.appendChild(p);
+  }
+  shLinks.forEach(s => {
+    const it = document.createElement('div'); it.className = 'shitem' + (s.active && shOn ? '' : ' off');
+    const t = document.createElement('div'); t.className = 'shtitle'; t.textContent = s.label || 'Unnamed link';
+    const m = document.createElement('div'); m.className = 'hint'; m.style.margin = '2px 0 6px';
+    m.textContent = (LEVEL_NAMES[s.level] || s.level) + (s.active ? '' : ' · paused');
+    const row = document.createElement('div'); row.className = 'row'; row.style.marginTop = '4px';
+    const btn = (txt, fn) => { const b = document.createElement('button'); b.textContent = txt; b.onclick = fn; row.appendChild(b); };
+    btn('Share', () => shSend(s));
+    btn(s.active ? 'Pause' : 'Resume', () => shPatch(s, {active: !s.active}));
+    btn('Delete', () => shDelete(s));
+    it.appendChild(t); it.appendChild(m); it.appendChild(row); box.appendChild(it);
+  });
+}
+async function shLoad() {
+  shMsg('Loading…');
+  const p = await sb.from('progress').select('sharing,display_name').eq('user_id', user.id).maybeSingle();
+  const l = await sb.from('shares').select('id,token,label,level,active').order('created_at');
+  const err = p.error || l.error; if (err) { shMsg(err.message); return; }
+  shOn = !!(p.data && p.data.sharing);
+  $('shname').value = (p.data && p.data.display_name) || '';
+  shLinks = l.data || [];
+  shRender(); shMsg('');
+}
+async function shSend(s) {
+  const url = linkUrl(s.token), title = (($('shname').value || '').trim() || 'My') + ' Bible reading';
+  try { if (navigator.share) { await navigator.share({title, url}); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(url); shMsg('Link copied.'); } catch (e) { prompt('Copy this link:', url); }
+}
+async function shPatch(s, patch) {
+  const r = await sb.from('shares').update(patch).eq('id', s.id);
+  if (r.error) { shMsg(r.error.message); return; }
+  Object.assign(s, patch); shRender();
+}
+async function shDelete(s) {
+  if (!confirm('Delete the link for “' + (s.label || 'Unnamed link') + '”? It stops working immediately.')) return;
+  const r = await sb.from('shares').delete().eq('id', s.id);
+  if (r.error) { shMsg(r.error.message); return; }
+  shLinks = shLinks.filter(x => x.id !== s.id); shRender();
+}
+if (!viewToken && sbEnabled) {
+  $('share').onclick = () => { if (!user) return; shdlg.showModal(); shLoad(); };
+  $('shclose').onclick = () => shdlg.close();
+  $('shtoggle').onclick = async () => {
+    const r = await sb.from('progress').upsert({user_id: user.id, sharing: !shOn}, {onConflict: 'user_id'});
+    if (r.error) { shMsg(r.error.message); return; }
+    shOn = !shOn; shRender();
+    shMsg(shOn ? 'Sharing is on. Each link shows what its level allows.' : 'Sharing is off. Every link is blocked.');
+    syncNow();                                   // make sure viewers get current data
+  };
+  $('shname').onchange = async () => {
+    const v = $('shname').value.trim().slice(0, 40);
+    const r = await sb.from('progress').upsert({user_id: user.id, display_name: v || null}, {onConflict: 'user_id'});
+    shMsg(r.error ? r.error.message : 'Name saved.');
+  };
+  $('shnew').onclick = async () => {
+    const label = $('shlabel').value.trim();
+    if (!label) { shMsg('Give the link a name so you remember who it is for.'); return; }
+    const r = await sb.from('shares').insert({owner_id: user.id, label, level: $('shlevel').value}).select('id,token,label,level,active').single();
+    if (r.error) { shMsg(/row-level/.test(r.error.message) ? 'You have reached the limit of 20 links.' : r.error.message); return; }
+    $('shlabel').value = ''; shLinks.push(r.data); shRender();
+    shMsg(shOn ? 'Link created. Tap Share on it to send.' : 'Link created, but sharing is OFF — turn it on for the link to work.');
+  };
+}
+
+// ---- sharing: viewer side (page opened from a link; read-only, no sign-in) ----
+const when = d => (d.toDateString() === new Date().toDateString()) ? hhmm(d)
+  : d.toLocaleDateString(undefined, {day: 'numeric', month: 'short'}) + ' ' + hhmm(d);
+function vShow(msg) {
+  vLevel = null; grid.textContent = '';
+  const p = document.createElement('p'); p.style.cssText = 'padding:24px 4px;color:var(--mut)'; p.textContent = msg;
+  grid.appendChild(p); $('stats').textContent = ''; info.textContent = '';
+}
+function renderSummary(d) {
+  grid.textContent = '';
+  const s = d.summary;
+  if (!s) { vShow('Nothing shared yet.'); return; }
+  vLevel = 'summary';
+  $('stats').textContent = '';
+  const big = document.createElement('div'); big.className = 'bigstat';
+  big.textContent = (s.verses / s.totalVerses * 100).toFixed(1) + '%';
+  const sub = document.createElement('div'); sub.className = 'hint'; sub.style.margin = '-10px 0 14px';
+  sub.textContent = s.chapters + ' of ' + s.totalChapters + ' chapters read';
+  grid.appendChild(big); grid.appendChild(sub);
+  const tot = {}, name = {}, cat = {};
+  chapters.forEach(c => { const b = c.key.split(':')[0]; tot[b] = (tot[b] || 0) + 1; name[b] = c.book; cat[b] = c.cat; });
+  Object.keys(tot).forEach(b => {
+    const n = (s.books && s.books[b]) || 0;
+    const row = document.createElement('div'); row.className = 'bk';
+    const nm = document.createElement('b'); nm.textContent = name[b];
+    const bar = document.createElement('div'); bar.className = 'bar';
+    const fill = document.createElement('i'); fill.style.width = (n / tot[b] * 100) + '%'; fill.style.background = COLORS[cat[b]];
+    bar.appendChild(fill);
+    const ct = document.createElement('span'); ct.textContent = n + '/' + tot[b];
+    row.appendChild(nm); row.appendChild(bar); row.appendChild(ct); grid.appendChild(row);
+  });
+}
+function applyViewerUI() {
+  $('viewSeg').hidden = vLevel !== 'full';       // the daily view needs dates
+  applyViewUI();
+  if (vLevel === 'summary') {
+    ['legendCh', 'legendDay', 'rangeSeg'].forEach(id => { $(id).hidden = true; });
+    modeBtn.hidden = true; info.textContent = '';
+  }
+}
+async function loadShared() {
+  let r;
+  try { r = await sb.rpc('get_shared_progress', {p_token: viewToken}); } catch (e) { r = {error: e}; }
+  if (r.error) {
+    $('vstat').textContent = 'Can’t reach the server — showing the last update';
+    if (!vLevel) vShow('Could not load. Check your connection and try again.');
+    return;
+  }
+  const d = r.data;
+  if (!d) { vShow('This link isn’t available. It may have been paused or turned off by its owner.'); $('vstat').textContent = ''; return; }
+  const changedLevel = vLevel !== d.level;
+  document.title = (d.name ? d.name + '’s' : 'Shared') + ' Bible reading';
+  $('h1').textContent = document.title;
+  $('vstat').textContent = 'Live · last change ' + when(new Date(d.updated_at));
+  if (d.level === 'summary') {
+    renderSummary(d);
+    if (changedLevel) applyViewerUI();
+  } else {
+    vLevel = d.level;
+    read = {};
+    Object.keys(d.read || {}).forEach(k => { read[k] = typeof d.read[k] === 'string' ? d.read[k] : true; });
+    if (d.level !== 'full' && view === 'daily') view = 'chapters';
+    if (changedLevel) { applyViewerUI(); relayout(); } else refreshView();
+  }
+}
+if (viewToken) {
+  ['exp', 'imp', 'sync', 'share'].forEach(id => { $(id).hidden = true; });
+  $('vstat').hidden = false;
+  if (!sbEnabled) vShow('Sharing isn’t available right now.');
+  else {
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {auth: {persistSession: false, autoRefreshToken: false, detectSessionInUrl: false}});
+    vShow('Loading…'); loadShared();
+    setInterval(() => { if (document.visibilityState !== 'hidden') loadShared(); }, 20000);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') loadShared(); });
+  }
+}
+
 updateSyncUI();
 
 new ResizeObserver(relayout).observe(grid);
