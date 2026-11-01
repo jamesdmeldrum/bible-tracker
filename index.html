@@ -735,11 +735,6 @@ function refreshView() { if (view === 'daily') relayout(); else paint(); }
 const hhmm = d => d.toLocaleTimeString(undefined, {hour: '2-digit', minute: '2-digit'});
 
 const stable = v => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x)) ? Object.fromEntries(Object.keys(x).sort().map(y => [y, x[y]])) : x);
-function computeDaily() {        // verses read per day; this is all a "daily chart only" link ever reveals
-  const d = {};
-  ALL.forEach(c => { const dt = read[c.key]; if (dt) d[dt] = (d[dt] || 0) + c.verses; });
-  return d;
-}
 function snapshot() {
   const o = {};
   new Set([...Object.keys(read), ...Object.keys(ts)]).forEach(k => { o[k] = [read[k] || null, ts[k] || 0]; });
@@ -760,42 +755,49 @@ function mergeRemote(remote) {
   return changed;
 }
 
+// Only what changed is sent (push_progress); the server merges it per chapter, newest change wins, and works out the
+// daily totals and summary itself. Between syncs a one-number check (the revision) says whether anything else wrote.
+let lastRev = null, remoteSnap = {}, syncUid = null;
 async function syncNow() {
   if (!sb || !user) return;
   if (syncing) { again = true; return; }
   if (navigator.onLine === false) { syncErr = 'Offline — will sync when back online'; updateSyncUI(); return; }
   syncing = true; syncErr = ''; updateSyncUI();
   try {
+    if (syncUid !== user.id) { syncUid = user.id; lastRev = null; remoteSnap = {}; }
     let done = false;
     for (let attempt = 0; attempt < 4 && !done; attempt++) {
-      const got = await sb.from('progress').select('data,rev,daily').eq('user_id', user.id).maybeSingle();
-      if (got.error) throw got.error;
-      const row = got.data;
-      if (row && mergeRemote(row.data)) { save(); refreshView(); }
-      const snap = snapshot(), daily = computeDaily();
-      if (row && sameSnap(snap, row.data) && stable(daily) === stable(row.daily)) { done = true; break; }
-      if (!row) {
-        const ins = await sb.from('progress').insert({user_id: user.id, data: snap, daily, rev: 1});
-        if (ins.error) { if (ins.error.code === '23505') continue; throw ins.error; }   // another device created it first: retry
-        done = true;
-      } else {
-        const upd = await sb.from('progress')
-          .update({data: snap, daily, rev: row.rev + 1, updated_at: new Date().toISOString()})
-          .eq('user_id', user.id).eq('rev', row.rev).select('rev');
-        if (upd.error) throw upd.error;
-        if (upd.data && upd.data.length) done = true;                                   // else: changed under us, retry
+      if (lastRev !== null) {                       // cheap check: has another device written since we last looked?
+        const m = await sb.from('progress').select('rev').eq('user_id', user.id).maybeSingle();
+        if (m.error) throw m.error;
+        if (!m.data || m.data.rev !== lastRev) lastRev = null;
       }
+      if (lastRev === null) {                       // full pull + merge
+        const got = await sb.from('progress').select('data,rev').eq('user_id', user.id).maybeSingle();
+        if (got.error) throw got.error;
+        const row = got.data;
+        remoteSnap = row ? JSON.parse(JSON.stringify(row.data)) : {};
+        if (row && mergeRemote(row.data)) { save(); refreshView(); }
+        lastRev = row ? row.rev : 0;
+      }
+      const snap = snapshot(), delta = {};
+      Object.keys(snap).forEach(k => { const r = remoteSnap[k]; if (!r || r[0] !== snap[k][0] || r[1] !== snap[k][1]) delta[k] = snap[k]; });
+      if (!Object.keys(delta).length) { done = true; break; }              // nothing new to send
+      const res = await sb.rpc('push_progress', {p_changes: delta});
+      if (res.error) throw res.error;
+      if (res.data && res.data.old === lastRev) { lastRev = res.data.new; Object.assign(remoteSnap, delta); done = true; }
+      else lastRev = null;                                                  // another device wrote in between: pull, merge, check again
     }
     if (!done) throw new Error('Busy — will retry');
     lastSync = new Date();
   } catch (e) {
     syncErr = (e && e.message) ? e.message : String(e);
+    lastRev = null;
   } finally {
     syncing = false; updateSyncUI();
     if (again) { again = false; setTimeout(syncNow, 0); }
   }
 }
-
 onLocalChange = () => { if (!user) return; clearTimeout(pushTimer); pushTimer = setTimeout(syncNow, 1200); };
 
 function showStep(s) {
@@ -923,14 +925,9 @@ async function loadPeople() {
   peopleBusy = true;
   if (!people) { grid.textContent = ''; const p = document.createElement('p'); p.className = 'pempty'; p.textContent = 'Loading…'; grid.appendChild(p); }
   try {
-    const l = await sb.rpc('my_followed');
+    const l = await sb.rpc('my_followed_summary');       // one call: everyone on the list, summary numbers only
     if (l.error) throw l.error;
-    const rows = l.data || [];
-    people = await Promise.all(rows.map(async f => {
-      let d = null;
-      try { const r = await sb.rpc('get_shared_view', {p_token: f.token}); d = r.error ? null : r.data; } catch (e) {}
-      return {id: f.share_id, token: f.token, name: (d && d.name) || f.name || 'Unnamed', d};
-    }));
+    people = (l.data || []).map(f => ({id: f.share_id, token: f.token, name: f.name || 'Unnamed', f}));
   } catch (e) { if (!people) people = []; info.textContent = 'Could not load your list: ' + (e.message || e); }
   peopleBusy = false;
   if (view === 'people') drawPeople();
@@ -938,32 +935,21 @@ async function loadPeople() {
 function drawPeople() {
   grid.textContent = '';
   if (!people) return;
-  const shown = people.filter(pp => pp.d);       // paused / turned-off links are hidden
-  if (!shown.length) {
+  if (!people.length) {
     const p = document.createElement('p'); p.className = 'pempty';
-    p.textContent = people.length ? 'Nobody is sharing with you right now. Paused or switched-off links are hidden and come back when the owner turns them on.'
-      : 'Nobody yet. When someone sends you a progress link and you open it while signed in, they appear here.';
+    p.textContent = 'Nobody to show right now. When someone sends you a progress link and you open it while signed in, they appear here for as long as their link is active.';
     grid.appendChild(p); return;
   }
   const box = document.createElement('div'); box.className = 'pgrid';
-  shown.forEach(pp => {
-    const t = document.createElement('div'); t.className = 'tile' + (pp.d ? '' : ' off');
+  people.forEach(pp => {
+    const f = pp.f;
+    const t = document.createElement('div'); t.className = 'tile';
     const n = document.createElement('div'); n.className = 'tn'; n.textContent = pp.name;
     const big = document.createElement('div'); big.className = 'tp';
     const sm = document.createElement('div'); sm.className = 'ts';
-    const d = pp.d;
-    if (!d) { big.textContent = '—'; sm.textContent = 'Not available right now'; }
-    else {
-      if (d.chapters) {
-        let v = 0; Object.keys(d.read || {}).forEach(k => { const c = BYKEY[k]; if (c) v += c.verses; });
-        const cn = Object.keys(d.read || {}).some(k => +k.split(':')[0] >= 66) ? 'catholic' : 'protestant';
-        big.textContent = (v / canonTotal(cn) * 100).toFixed(1) + '%';
-      } else {
-        let v = 0; Object.values(d.days || {}).forEach(x => { v += x; });
-        big.textContent = v + (v === 1 ? ' verse' : ' verses'); big.style.fontSize = '20px';
-      }
-      sm.textContent = [d.chapters ? 'Bible chart' : '', d.daily ? 'Daily chart' : ''].filter(Boolean).join(' · ') + ' · last change ' + when(new Date(d.updated_at));
-    }
+    if (f.show_chapters) big.textContent = (f.verses / canonTotal(f.extra ? 'catholic' : 'protestant') * 100).toFixed(1) + '%';
+    else { big.textContent = f.verses + (f.verses === 1 ? ' verse' : ' verses'); big.style.fontSize = '20px'; }
+    sm.textContent = [f.show_chapters ? 'Bible chart' : '', f.show_daily ? 'Daily chart' : ''].filter(Boolean).join(' · ') + ' · last change ' + when(new Date(f.updated_at));
     const x = document.createElement('button'); x.className = 'tx'; x.textContent = '✕'; x.title = 'Remove from list';
     x.onclick = async ev => {
       ev.stopPropagation();
@@ -1083,6 +1069,15 @@ function applyViewerUI() {
   $('viewSeg').hidden = vLevel !== 'both';       // switch between the two charts only when the link shows both
   applyViewUI();
 }
+// Polling: ask for a tiny "last changed" value; download the progress only when it has changed.
+let lastStamp = null;
+async function pollShared() {
+  let st = null, ok = true;
+  try { const r = await sb.rpc('get_shared_stamp', {p_token: viewToken}); if (r.error) ok = false; else st = r.data; } catch (e) { ok = false; }
+  if (!ok) { $('vstat').textContent = 'Can’t reach the server — showing the last update'; if (!vLevel) loadShared(); return; }
+  if (vLevel && st !== null && st === lastStamp) return;       // unchanged: nothing downloaded
+  lastStamp = st; await loadShared();
+}
 async function loadShared() {
   let r;
   try { r = await sb.rpc('get_shared_view', {p_token: viewToken}); } catch (e) { r = {error: e}; }
@@ -1136,9 +1131,9 @@ if (viewToken) {
   if (!sbEnabled) vShow('Sharing isn’t available right now.');
   else {
     sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {auth: {persistSession: true, autoRefreshToken: true, detectSessionInUrl: false}});
-    vShow('Loading…'); loadShared();
-    setInterval(() => { if (document.visibilityState !== 'hidden') loadShared(); }, 20000);
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') loadShared(); });
+    vShow('Loading…'); pollShared();
+    setInterval(() => { if (document.visibilityState !== 'hidden') pollShared(); }, 60000);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pollShared(); });
   }
 }
 
