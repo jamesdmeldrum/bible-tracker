@@ -52,19 +52,40 @@ dialog select{width:100%;font:inherit;padding:8px;background:#0d1117;color:var(-
 .shitem{border:1px solid #30363d;border-radius:8px;padding:8px 10px;margin-top:8px}
 .shitem.off{opacity:.55}
 .shtitle{font-weight:600}
-.bk{display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:12px}
-.bk b{flex:0 0 112px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bk .bar{flex:1;height:8px;border-radius:4px;background:var(--empty);overflow:hidden}
-.bk .bar i{display:block;height:100%}
-.bk span{flex:0 0 54px;text-align:right;color:var(--mut)}
-.bigstat{font-size:30px;font-weight:700;margin:6px 0 14px}
+.chk{display:flex;align-items:center;gap:10px;margin:8px 0 2px;font-size:14px}
+dialog .chk input{width:20px;height:20px;margin:0;padding:0;flex:0 0 auto}
+.shitem .chk{display:inline-flex;margin:0 14px 6px 0}
 #sacct{margin:0;word-break:break-all}
+.c.hl{box-shadow:0 0 0 2px #ffd33d,0 0 10px 3px rgba(255,211,61,.85);z-index:3}
+#canon{font:inherit;color:var(--fg);background:#21262d;border:1px solid #30363d;border-radius:6px;padding:6px 8px;max-width:48vw}
+#qform{margin:0 0 6px}
+#q{width:100%;font:inherit;padding:7px 10px;background:#0d1117;color:var(--fg);border:1px solid #30363d;border-radius:6px;color-scheme:dark}
+#q:focus{outline:none;border-color:#ffd33d}
+#vbanner{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#143a66;border:1px solid #388bfd;border-radius:8px;padding:8px 10px;margin:0 0 8px}
+#vbanner b{font-size:14px}
+#vhint{font-size:12px;color:#b6d4fe;margin-top:2px}
+html.viewing,body.viewing{background:#08121f}
+body.viewing #grid{border:1px dashed #388bfd;border-radius:6px}
+.seg.two button[data-v="daily"]{border-radius:0 6px 6px 0}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;padding:2px}
+.tile{position:relative;background:#161b22;border:1px solid #30363d;border-radius:10px;padding:12px;cursor:pointer;min-height:110px}
+.tile:active{background:#1d242d}
+.tile.off{opacity:.55}
+.tile .tn{font-weight:600;font-size:15px;padding-right:26px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tile .tp{font-size:26px;font-weight:700;margin:6px 0 2px}
+.tile .ts{font-size:12px;color:var(--mut)}
+.tile .tx{position:absolute;top:4px;right:4px;border:0;background:transparent;color:var(--mut);padding:4px 8px;font-size:15px}
+.pempty{padding:24px 6px;color:var(--mut)}
 </style>
 </head>
 <body>
+<div id="vbanner" hidden>
+  <div><b id="vname">Shared progress</b><div id="vhint"></div></div>
+  <button id="vhome">My progress</button>
+</div>
 <header>
   <h1 id="h1">Bible Reading</h1>
-  <div class="seg" id="viewSeg"><button data-v="chapters">Chapters</button><button data-v="daily">Daily</button></div>
+  <div class="seg" id="viewSeg"><button data-v="chapters">Chapters</button><button data-v="daily">Daily</button><button data-v="people" id="tabPeople" hidden>People</button></div>
   <span id="stats"></span>
   <div class="legend" id="legendCh">
     <span><i style="background:var(--ot)"></i>Old Testament</span>
@@ -74,15 +95,14 @@ dialog select{width:100%;font:inherit;padding:8px;background:#0d1117;color:var(-
   </div>
   <div class="legend" id="legendDay" hidden><span>Less</span><span id="scale"></span><span>More</span></div>
 </header>
+<form id="qform" autocomplete="off"><input id="q" type="search" enterkeyhint="search" autocapitalize="off" spellcheck="false" placeholder="Search a book or chapter, e.g. John 3"></form>
 <div id="info">Tap a chapter to see it. Double-tap to mark read. Long-press to edit date.</div>
 <div id="grid"></div>
 <footer>
-  <button id="exp">Export</button>
-  <button id="imp">Import</button>
-  <input type="file" id="file" accept="application/json" hidden>
   <button id="sync" hidden></button>
   <button id="share" hidden>Share</button>
   <span class="hint" id="vstat" style="margin:0" hidden></span>
+  <select id="canon"></select>
   <button id="mode"></button>
   <div class="seg" id="rangeSeg" hidden><button data-r="w">1W</button><button data-r="m">1M</button><button data-r="q">3M</button><button data-r="y">12M</button></div>
 </footer>
@@ -99,18 +119,9 @@ dialog select{width:100%;font:inherit;padding:8px;background:#0d1117;color:var(-
 
 <dialog id="sdlg">
   <h2>Sync progress</h2>
-  <div id="s-email">
-    <div id="sgwrap" hidden>
-      <div class="row" style="margin:0 0 12px"><button id="sgoogle">Continue with Google</button></div>
-      <p class="hint" style="margin:0 0 10px">or use your email</p>
-    </div>
-    <input type="email" id="semail" placeholder="you@example.com" autocomplete="email" inputmode="email">
-    <div class="row"><button id="sendcode">Email me a code</button><button class="sclose">Cancel</button></div>
-    <p class="hint">No password. Use the same email on any device to bring your progress back.</p>
-  </div>
-  <div id="s-code" hidden>
-    <input id="scode" placeholder="Code from the email" autocomplete="one-time-code" inputmode="numeric">
-    <div class="row"><button id="verify">Verify</button><button id="sback">Back</button></div>
+  <div id="s-in">
+    <p class="hint" style="margin:0 0 12px">Sign in to back up your progress and use it on any device.</p>
+    <div class="row" style="margin:0"><button id="sgoogle">Continue with Google</button><button class="sclose">Cancel</button></div>
   </div>
   <div id="s-acct" hidden>
     <p id="sacct"></p>
@@ -124,13 +135,11 @@ dialog select{width:100%;font:inherit;padding:8px;background:#0d1117;color:var(-
   <div class="shstate"><span id="shstate"></span><button id="shtoggle"></button></div>
   <input id="shname" placeholder="Name viewers see (e.g. James)" maxlength="40">
   <div id="shlist"></div>
-  <p class="hint" style="margin-top:14px">New link — one per person, so you can pause or delete each separately:</p>
-  <input id="shlabel" placeholder="Who is it for? (only you see this)" maxlength="40">
-  <select id="shlevel">
-    <option value="chart">Chapters read, no dates</option>
-    <option value="full">Everything, including dates and daily chart</option>
-    <option value="summary">Summary only (totals and per-book)</option>
-  </select>
+  <p class="hint" style="margin-top:14px">Make a link for a person or a group. Everyone using that link sees the same thing, and pausing or deleting it stops access for all of them.</p>
+  <input id="shlabel" placeholder="Person or group name (only you see this)" maxlength="40">
+  <p class="hint" style="margin:12px 0 0">What they can see:</p>
+  <label class="chk"><input type="checkbox" id="shchap" checked><span>Bible chart</span></label>
+  <label class="chk"><input type="checkbox" id="shday"><span>Daily chart</span></label>
   <div class="row"><button id="shnew">Create link</button><button id="shclose">Close</button></div>
   <p class="hint" id="shmsg"></p>
 </dialog>
@@ -146,7 +155,8 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 // A shared link looks like  <page address>#share=<token>  and opens a read-only live view.
 const shareMatch = typeof location !== 'undefined' ? /^#share=([A-Za-z0-9_-]{16,})$/.exec(location.hash) : null;
 const viewToken = shareMatch ? shareMatch[1] : '';
-let vLevel = null;   // viewer mode: detail level being shown ('summary' | 'chart' | 'full'), null until loaded
+let vLevel = null;   // viewer mode: what this link shows: 'chapters' | 'daily' | 'both'; null until loaded
+let viewDays = null; // viewer of a daily-only link: { 'YYYY-MM-DD': verses } (no chapter detail)
 
 // name | category | verses per chapter
 const RAW = `Genesis|ot|31,25,24,26,32,22,24,22,29,32,32,20,18,24,21,16,27,33,38,18,34,24,20,67,34,35,46,22,35,43,55,32,20,31,29,43,36,30,23,23,57,38,34,34,28,34,31,22,33,26
@@ -219,14 +229,53 @@ Revelation|nt|20,29,22,11,14,17,17,13,21,11,19,17,18,20,8,21,18,24,21,15,27,21`;
 const COLORS = {ot:'var(--ot)', wis:'var(--wis)', gos:'var(--gos)', nt:'var(--nt)'};
 const sizeOf = v => v <= 15 ? 1 : v <= 30 ? 2 : 3;   // S / M / L
 
-const chapters = [];
-RAW.trim().split('\n').forEach((line, bi) => {
+// Extra books of the Catholic canon. Their keys (66-72) never change, so saved progress stays valid.
+// Verse counts follow common modern translations (NRSV-style) and may differ by a verse or two in other editions.
+const EXTRA = `Tobit|ot|22,14,17,21,22,18,17,21,6,13,19,22,18,15
+Judith|ot|16,28,10,15,24,21,32,36,14,23,23,20,20,19,14,25
+Wisdom|wis|16,24,19,20,23,25,30,21,18,21,26,27,19,31,19,29,21,25,22
+Sirach|wis|30,18,31,31,15,37,36,19,18,25,34,18,26,27,20,30,32,33,30,31,28,27,27,34,26,29,30,26,28,25,31,24,33,31,26,31,31,34,35,30,24,25,33,23,26,20,25,25,16,29,30
+Baruch|ot|22,35,38,37,9,72
+1 Maccabees|ot|64,70,60,61,68,63,50,32,73,89,74,53,53,49,41,24
+2 Maccabees|ot|36,32,40,50,27,31,42,36,29,38,38,45,26,46,39`;
+const ALL = [], BOOKS = [];       // every chapter of every canon; BOOKS[bi] = {name, idx:[...]}
+(RAW.trim() + '\n' + EXTRA).split('\n').forEach((line, bi) => {
   const [name, cat, vs] = line.split('|');
-  vs.split(',').forEach((v, ci) => chapters.push({
-    key: bi + ':' + (ci + 1), book: name, ch: ci + 1, verses: +v,
+  BOOKS.push(name);
+  vs.split(',').forEach((v, ci) => ALL.push({
+    key: bi + ':' + (ci + 1), bi, book: name, ch: ci + 1, verses: +v,
     size: sizeOf(+v), cat, first: ci === 0
   }));
 });
+const BYKEY = {}; ALL.forEach(c => { BYKEY[c.key] = c; });
+// Canons: order of books (by index into the list above). 66+ are the extra Catholic books.
+function catholicOrder() {        // Protestant order with the extra books slotted in where Catholic Bibles print them
+  const after = {Nehemiah: ['Tobit', 'Judith'], 'Song of Songs': ['Wisdom', 'Sirach'], Lamentations: ['Baruch'], Malachi: ['1 Maccabees', '2 Maccabees']};
+  const out = [];
+  for (let i = 0; i < 66; i++) { out.push(i); (after[BOOKS[i]] || []).forEach(n => out.push(BOOKS.indexOf(n))); }
+  return out;
+}
+const CANONS = {
+  protestant: {label: 'Protestant (66 books)', order: Array.from({length: 66}, (_, i) => i)},
+  catholic: {label: 'Catholic (73 books)', order: catholicOrder()}
+};
+const CANON_KEY = 'bibleCanonV1';
+let canon = 'protestant';
+let selected = null;
+let hlSet = new Set();   // chapter indexes highlighted yellow by search
+let chapters = [], segs = [], bookNames = [], TOTAL_VERSES = 0;
+function setCanon(name) {            // rebuilds the active chapter list; caller redraws
+  canon = CANONS[name] ? name : 'protestant';
+  const ok = new Set(CANONS[canon].order);
+  chapters = []; CANONS[canon].order.forEach(bi => ALL.forEach(c => { if (c.bi === bi) chapters.push(c); }));
+  segs.length = 0; chapters.forEach(() => segs.push([]));
+  TOTAL_VERSES = chapters.reduce((a, c) => a + c.verses, 0);
+  bookNames = []; chapters.forEach(c => { if (!bookNames.includes(c.book)) bookNames.push(c.book); });
+  selected = null; hlSet = new Set();
+}
+try { canon = localStorage.getItem(CANON_KEY) || 'protestant'; } catch (e) {}
+setCanon(canon);
+const canonTotal = name => ALL.filter(c => CANONS[name].order.includes(c.bi)).reduce((a, c) => a + c.verses, 0);
 
 // ---- storage ----
 const KEY = 'bibleReadV1';
@@ -250,11 +299,10 @@ try { navigator.storage && navigator.storage.persist && navigator.storage.persis
 const today = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD, local
 const fmt = d => new Date(d + 'T00:00:00').toLocaleDateString(undefined, {day:'numeric', month:'short', year:'numeric'});
 
+const $ = id => document.getElementById(id);
 // ---- layout ----
 const grid = document.getElementById('grid');
 const info = document.getElementById('info');
-const segs = chapters.map(() => []);
-let selected = null;
 
 // ---- layout (pure) ----
 // "By length": one continuous strip wrapped to the chart width. A chapter that
@@ -346,12 +394,14 @@ function draw(res) {
   grid.appendChild(frag);
   paint();
   if (selected != null) segs[selected].forEach(e => e.classList.add('sel'));
+  hlSet.forEach(i => segs[i].forEach(e => e.classList.add('hl')));
 }
 
 function relayout() {
   const W = grid.clientWidth, H = grid.clientHeight;
   if (W < 50 || H < 50) return;
-  if (viewToken && vLevel !== 'chart' && vLevel !== 'full') return;   // viewer: nothing to chart yet / summary page
+  if (viewToken && !vLevel) return;   // viewer: nothing loaded yet (or link unavailable)
+  if (view === 'people') { drawPeople(); return; }
   if (view === 'daily') { drawDaily(W, H); return; }
   let res;
   if (mode === 'fixed') res = layoutFixed(W, H);
@@ -368,9 +418,9 @@ function relayout() {
   draw(res);
 }
 
-const TOTAL_VERSES = chapters.reduce((a, c) => a + c.verses, 0);
 function paint() {
-  if (viewToken && vLevel !== 'chart' && vLevel !== 'full') return;
+  if (view === 'people') return;
+  if (viewToken && (!vLevel || vLevel === 'daily')) return;
   let n = 0, v = 0;
   chapters.forEach((c, i) => {
     const r = !!read[c.key];
@@ -380,10 +430,10 @@ function paint() {
   if (view === 'chapters') document.getElementById('stats').textContent = n + ' / ' + chapters.length + ' chapters · ' + (v / TOTAL_VERSES * 100).toFixed(1) + '%';
 }
 
-function showInfo(i) {
+function showInfo(i, quiet) {
   const c = chapters[i];
   if (selected != null) segs[selected].forEach(e => e.classList.remove('sel'));
-  selected = i; segs[i].forEach(e => e.classList.add('sel'));
+  if (quiet) selected = null; else { selected = i; segs[i].forEach(e => e.classList.add('sel')); }
   const d = read[c.key];
   info.textContent = c.book + ' ' + c.ch + ' · ' + c.verses + ' verses · ' + (d ? (typeof d === 'string' ? 'read ' + fmt(d) : 'read') : 'not read');
 }
@@ -408,8 +458,8 @@ document.getElementById('dunread').onclick = () => { setRead(chapters[editing].k
 document.getElementById('dcancel').onclick = () => dlg.close();
 
 // ---- daily view ----
-const VIEW_KEY = 'bibleViewV1', RANGE_KEY = 'bibleRangeV1';
-let view = 'chapters', range = 'y', selDay = null;
+const VIEW_KEY = 'bibleViewV1', RANGE_KEY = 'bibleRangeV2';
+let view = 'chapters', range = 'q', selDay = null;
 try {
   view = localStorage.getItem(VIEW_KEY) === 'daily' ? 'daily' : 'chapters';
   const rr = localStorage.getItem(RANGE_KEY);
@@ -459,8 +509,9 @@ const MAX_DAY = 85;   // verses in a day at (or above) which the colour is at it
 const dayColor = p => 'color-mix(in srgb, #39d353 ' + (Math.min(p, MAX_DAY) / MAX_DAY * 100).toFixed(1) + '%, #0e4429)';
 
 function dailyTotals() {
+  if (viewDays) return {pts: viewDays, list: {}};
   const pts = {}, list = {};
-  chapters.forEach(c => {
+  ALL.forEach(c => {
     const d = read[c.key];
     if (d) { pts[d] = (pts[d] || 0) + c.verses; (list[d] = list[d] || []).push(c); }
   });
@@ -490,7 +541,7 @@ function drawDaily(W, H) {
   };
   m.cells.forEach(c => {
     const p = pts[c.date] || 0;
-    if (p) { total += list[c.date].length; active++; }
+    if (p) { total += viewDays ? p : list[c.date].length; active++; }
     const x = m.L + (m.o === 'h' ? c.w : c.dow) * step;
     const y = m.T + (m.o === 'h' ? c.dow : c.w) * step;
     const d = document.createElement('div');
@@ -525,7 +576,7 @@ function drawDaily(W, H) {
   else names.forEach((n, r) => label(m.s >= 26 ? n : n[0], m.L + r * step, m.T - 14, m.s, 'center'));
   grid.textContent = '';
   grid.appendChild(frag);
-  document.getElementById('stats').textContent = total + ' chapter' + (total === 1 ? '' : 's') + ' · ' + active + ' active day' + (active === 1 ? '' : 's');
+  document.getElementById('stats').textContent = total + (viewDays ? ' verse' : ' chapter') + (total === 1 ? '' : 's') + ' · ' + active + ' active day' + (active === 1 ? '' : 's');
   if (selDay) { const n = grid.querySelector('.d[data-date="' + selDay + '"]'); if (n) n.classList.add('sel'); }
 }
 
@@ -533,28 +584,36 @@ function showDay(date) {
   const {pts, list} = dailyTotals();
   const p = pts[date] || 0;
   const label = parseYmd(date).toLocaleDateString(undefined, {weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'});
-  info.textContent = label + ' · ' + (p ? list[date].length + (list[date].length === 1 ? ' chapter' : ' chapters') + ' · ' + compress(list[date]) : 'nothing logged');
+  info.textContent = label + ' · ' + (!p ? 'nothing logged' : viewDays ? p + (p === 1 ? ' verse' : ' verses')
+    : list[date].length + (list[date].length === 1 ? ' chapter' : ' chapters') + ' · ' + compress(list[date]));
   if (selDay) { const o = grid.querySelector('.d[data-date="' + selDay + '"]'); if (o) o.classList.remove('sel'); }
   selDay = date;
   const n = grid.querySelector('.d[data-date="' + date + '"]'); if (n) n.classList.add('sel');
 }
 
 function applyViewUI() {
-  const daily = view === 'daily';
-  document.getElementById('legendCh').hidden = daily;
+  const daily = view === 'daily', people = view === 'people';
+  document.getElementById('legendCh').hidden = daily || people;
   document.getElementById('legendDay').hidden = !daily;
   document.getElementById('rangeSeg').hidden = !daily;
-  modeBtn.hidden = daily;
+  modeBtn.hidden = daily || people;
+  $('canon').hidden = daily || people || !!viewToken;
+  $('qform').hidden = view !== 'chapters' || (viewToken && vLevel === 'daily');
+  grid.style.touchAction = '';
   document.querySelectorAll('#viewSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === view));
   document.querySelectorAll('#rangeSeg button').forEach(b => b.classList.toggle('on', b.dataset.r === range));
-  info.textContent = viewToken ? (daily ? 'Tap a day to see what was read.' : 'Tap a chapter to see it.')
+  info.textContent = people ? 'People who shared their progress with you. Tap a tile to view it.'
+    : viewToken ? (daily ? 'Tap a day to see what was read.' : 'Tap a chapter to see it.')
     : daily ? 'Tap a day to see what you read.' : 'Tap a chapter to see it. Double-tap to mark read. Long-press to edit date.';
+  if (people) $('stats').textContent = '';
 }
 function setView(v) {
   if (v === view) return;
   view = v; selected = null; selDay = null;
-  try { localStorage.setItem(VIEW_KEY, view); } catch (e) {}
+  if (v !== 'people') { try { localStorage.setItem(VIEW_KEY, view); } catch (e) {} }
   applyViewUI(); relayout();
+  if (v === 'people') loadPeople();
+  else if (v === 'chapters') paint();
 }
 function setRange(r) {
   range = r; selDay = null;
@@ -596,43 +655,22 @@ grid.addEventListener('pointerup', e => {
 });
 ['pointercancel', 'pointerleave'].forEach(t => grid.addEventListener(t, e => { if (e.pointerType !== 'mouse') clearTimeout(lp); }));
 
-// ---- export / import ----
-document.getElementById('exp').onclick = () => {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(read, null, 1)], {type: 'application/json'}));
-  a.download = 'bible-progress-' + today() + '.json'; a.click();
-};
-const file = document.getElementById('file');
-document.getElementById('imp').onclick = () => file.click();
-file.onchange = async () => {
-  try {
-    const obj = JSON.parse(await file.files[0].text());
-    if (typeof obj !== 'object' || Array.isArray(obj)) throw 0;
-    if (!confirm('Replace current progress with imported file?')) return;
-    const now = Date.now();
-    new Set([...Object.keys(read), ...Object.keys(obj)]).forEach(k => { ts[k] = now; });
-    read = obj; save(); onLocalChange(); refreshView();
-  } catch (e) { alert('That file could not be imported.'); }
-  file.value = '';
-};
-
 // ---- cloud sync (Supabase) ----
 // Local-first: the app always works from this device's storage. When signed in, each change is
 // pushed (debounced) and the cloud copy is pulled on open, on return to the tab, and when back online.
 // Per chapter, the most recent change wins (un-reads are kept as timestamped entries).
 const sbtn = document.getElementById('sync'), sdlg = document.getElementById('sdlg');
-const $ = id => document.getElementById(id);
 const sbEnabled = !!(SUPABASE_URL && SUPABASE_KEY && window.supabase);
-let sb = null, user = null, syncing = false, again = false, pushTimer = null, lastSync = null, syncErr = '', pendingEmail = '';
+let sb = null, user = null, syncing = false, again = false, pushTimer = null, lastSync = null, syncErr = '';
 
 function refreshView() { if (view === 'daily') relayout(); else paint(); }
 const hhmm = d => d.toLocaleTimeString(undefined, {hour: '2-digit', minute: '2-digit'});
 
 const stable = v => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x)) ? Object.fromEntries(Object.keys(x).sort().map(y => [y, x[y]])) : x);
-function computeSummary() {      // totals only; this is all a "summary" link ever reveals
-  let n = 0, v = 0; const books = {};
-  chapters.forEach(c => { if (read[c.key]) { n++; v += c.verses; const b = c.key.split(':')[0]; books[b] = (books[b] || 0) + 1; } });
-  return {chapters: n, verses: v, totalChapters: chapters.length, totalVerses: TOTAL_VERSES, books};
+function computeDaily() {        // verses read per day; this is all a "daily chart only" link ever reveals
+  const d = {};
+  ALL.forEach(c => { const dt = read[c.key]; if (dt) d[dt] = (d[dt] || 0) + c.verses; });
+  return d;
 }
 function snapshot() {
   const o = {};
@@ -662,19 +700,19 @@ async function syncNow() {
   try {
     let done = false;
     for (let attempt = 0; attempt < 4 && !done; attempt++) {
-      const got = await sb.from('progress').select('data,rev,summary').eq('user_id', user.id).maybeSingle();
+      const got = await sb.from('progress').select('data,rev,daily').eq('user_id', user.id).maybeSingle();
       if (got.error) throw got.error;
       const row = got.data;
       if (row && mergeRemote(row.data)) { save(); refreshView(); }
-      const snap = snapshot(), sum = computeSummary();
-      if (row && sameSnap(snap, row.data) && stable(sum) === stable(row.summary)) { done = true; break; }
+      const snap = snapshot(), daily = computeDaily();
+      if (row && sameSnap(snap, row.data) && stable(daily) === stable(row.daily)) { done = true; break; }
       if (!row) {
-        const ins = await sb.from('progress').insert({user_id: user.id, data: snap, summary: sum, rev: 1});
+        const ins = await sb.from('progress').insert({user_id: user.id, data: snap, daily, rev: 1});
         if (ins.error) { if (ins.error.code === '23505') continue; throw ins.error; }   // another device created it first: retry
         done = true;
       } else {
         const upd = await sb.from('progress')
-          .update({data: snap, summary: sum, rev: row.rev + 1, updated_at: new Date().toISOString()})
+          .update({data: snap, daily, rev: row.rev + 1, updated_at: new Date().toISOString()})
           .eq('user_id', user.id).eq('rev', row.rev).select('rev');
         if (upd.error) throw upd.error;
         if (upd.data && upd.data.length) done = true;                                   // else: changed under us, retry
@@ -693,13 +731,16 @@ async function syncNow() {
 onLocalChange = () => { if (!user) return; clearTimeout(pushTimer); pushTimer = setTimeout(syncNow, 1200); };
 
 function showStep(s) {
-  $('s-email').hidden = s !== 'email'; $('s-code').hidden = s !== 'code'; $('s-acct').hidden = s !== 'acct';
+  $('s-in').hidden = s !== 'in'; $('s-acct').hidden = s !== 'acct';
   $('smsg').textContent = '';
 }
 function updateSyncUI() {
   if (!sbEnabled || viewToken) { sbtn.hidden = true; return; }
   sbtn.hidden = false;
   $('share').hidden = !user;
+  $('tabPeople').hidden = !user;
+  $('viewSeg').classList.toggle('two', !user);
+  if (!user && view === 'people') setView('chapters');
   sbtn.textContent = !user ? '☁ Sign in to sync' : syncing ? '☁ Syncing…' : syncErr ? '☁ Sync problem' : lastSync ? '☁ Synced ' + hhmm(lastSync) : '☁ Sync';
   if (user) {
     $('sacct').textContent = (user.email || 'Signed in') + (syncErr ? ' — ' + syncErr : lastSync ? ' — synced ' + hhmm(lastSync) : '');
@@ -716,50 +757,134 @@ if (!viewToken && sbEnabled) {
       if (user) setTimeout(syncNow, 0);      // not awaited here: calling Supabase inside this callback can deadlock
     });
   } catch (e) { sb = null; syncErr = String(e); }
-  sbtn.onclick = () => {
-    let saved = ''; try { saved = localStorage.getItem('bibleEmailV1') || ''; } catch (e) {}
-    $('semail').value = pendingEmail || saved;
-    showStep(user ? 'acct' : 'email'); updateSyncUI();
-    sdlg.showModal();
-  };
+  sbtn.onclick = () => { showStep(user ? 'acct' : 'in'); updateSyncUI(); sdlg.showModal(); };
   document.querySelectorAll('.sclose').forEach(b => { b.onclick = () => sdlg.close(); });
-  // Show "Continue with Google" only once the provider is switched on in Supabase.
-  try {
-    fetch(SUPABASE_URL + '/auth/v1/settings', {headers: {apikey: SUPABASE_KEY}})
-      .then(r => r.json()).then(j => { $('sgwrap').hidden = !(j && j.external && j.external.google); }).catch(() => {});
-  } catch (e) {}
   $('sgoogle').onclick = async () => {
     $('smsg').textContent = 'Opening Google…';
     const r = await sb.auth.signInWithOAuth({provider: 'google', options: {redirectTo: location.origin + location.pathname}});
     if (r.error) $('smsg').textContent = r.error.message;
-  };
-  $('sendcode').onclick = async () => {
-    const email = $('semail').value.trim(); if (!email) return;
-    $('smsg').textContent = 'Sending…';
-    const r = await sb.auth.signInWithOtp({email, options: {shouldCreateUser: true}});
-    if (r.error) { $('smsg').textContent = r.error.message; return; }
-    pendingEmail = email; try { localStorage.setItem('bibleEmailV1', email); } catch (e) {}
-    showStep('code'); $('smsg').textContent = 'Email sent to ' + email + ' — enter the code from it, or open its link in this browser. Check spam if it is missing.';
-    $('scode').value = ''; $('scode').focus();
-  };
-  $('sback').onclick = () => showStep('email');
-  $('verify').onclick = async () => {
-    const token = $('scode').value.replace(/\s+/g, ''); if (!token) return;
-    $('smsg').textContent = 'Checking…';
-    const r = await sb.auth.verifyOtp({email: pendingEmail, token, type: 'email'});
-    if (r.error) { $('smsg').textContent = r.error.message; return; }
-    sdlg.close();
   };
   $('snow').onclick = () => { syncNow(); };
   $('sout').onclick = async () => { await sb.auth.signOut(); user = null; lastSync = null; syncErr = ''; sdlg.close(); updateSyncUI(); };
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && user) syncNow(); });
   window.addEventListener('online', () => { if (user) syncNow(); });
 }
+
+// ---- canon selector ----
+$('canon').innerHTML = Object.keys(CANONS).map(k => '<option value="' + k + '">' + CANONS[k].label + '</option>').join('');
+$('canon').value = canon;
+$('canon').onchange = () => {
+  setCanon($('canon').value);
+  try { localStorage.setItem(CANON_KEY, canon); } catch (e) {}
+  $('q').value = ''; applyViewUI(); relayout();
+};
+
+// ---- search ----
+const NUMW = {first: 1, second: 2, third: 3, '1st': 1, '2nd': 2, '3rd': 3, i: 1, ii: 2, iii: 3};
+const bookKey = n => n.toLowerCase().replace(/[^a-z0-9]/g, '');
+const ALIAS = {songofsolomon: 'songofsongs', canticles: 'songofsongs', revelations: 'revelation', jn: 'john', mt: 'matthew', mk: 'mark', lk: 'luke', ps: 'psalms', psalm: 'psalms', prov: 'proverbs'};
+function searchChapters(q) {
+  q = q.toLowerCase().replace(/[,;]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!q) return null;
+  q = q.replace(/^(first|second|third|1st|2nd|3rd|i{1,3})\s+/, (m, w) => NUMW[w] + ' ');
+  let m = q.match(/^(.*[a-z].*?)\s*(\d+)(?:\s*[:.]\s*\d+)?$/), name = q, num = null;
+  if (m) { name = m[1].trim(); num = parseInt(m[2], 10); }
+  let k = bookKey(name); if (!k) return [];
+  k = ALIAS[k] || k;
+  let books = bookNames.filter(b => bookKey(b).startsWith(k));
+  if (!books.length && !/^\d/.test(k)) books = bookNames.filter(b => bookKey(b.replace(/^\d\s*/, '')).startsWith(k));
+  const out = [];
+  chapters.forEach((c, i) => { if (books.includes(c.book) && (num == null || c.ch === num)) out.push(i); });
+  return out;
+}
+function clearHl() { hlSet.forEach(i => segs[i].forEach(e => e.classList.remove('hl'))); hlSet = new Set(); }
+function setHl(list) {
+  clearHl();
+  list.forEach(i => { hlSet.add(i); segs[i].forEach(e => e.classList.add('hl')); });
+}
+function runSearch(enter) {
+  const q = $('q').value, res = searchChapters(q);
+  if (res == null) { clearHl(); applyViewUI(); return; }
+  if (!res.length) { clearHl(); info.textContent = 'No match'; return; }
+  if (res.length === 1) {
+    setHl(res); showInfo(res[0], true);
+    const e = segs[res[0]][0]; try { e && e.scrollIntoView({block: 'nearest'}); } catch (x) {}
+  } else if (enter) {
+    setHl(res);
+    const c0 = chapters[res[0]];
+    info.textContent = res.length + ' chapters highlighted' + (res.every(i => chapters[i].book === c0.book) ? ' · ' + c0.book : '');
+    const e = segs[res[0]][0]; try { e && e.scrollIntoView({block: 'nearest'}); } catch (x) {}
+  } else { clearHl(); info.textContent = res.length + ' chapters match — press Enter to highlight them'; }
+}
+$('q').addEventListener('input', () => runSearch(false));
+$('qform').addEventListener('submit', e => { e.preventDefault(); runSearch(true); $('q').blur(); });
+
+// ---- people tab (everyone who shared with you) ----
+let people = null, peopleBusy = false;
+async function loadPeople() {
+  if (!sb || !user || peopleBusy) return;
+  peopleBusy = true;
+  if (!people) { grid.textContent = ''; const p = document.createElement('p'); p.className = 'pempty'; p.textContent = 'Loading…'; grid.appendChild(p); }
+  try {
+    const l = await sb.rpc('my_followed');
+    if (l.error) throw l.error;
+    const rows = l.data || [];
+    people = await Promise.all(rows.map(async f => {
+      let d = null;
+      try { const r = await sb.rpc('get_shared_view', {p_token: f.token}); d = r.error ? null : r.data; } catch (e) {}
+      return {id: f.share_id, token: f.token, name: (d && d.name) || f.name || 'Unnamed', d};
+    }));
+  } catch (e) { if (!people) people = []; info.textContent = 'Could not load your list: ' + (e.message || e); }
+  peopleBusy = false;
+  if (view === 'people') drawPeople();
+}
+function drawPeople() {
+  grid.textContent = '';
+  if (!people) return;
+  const shown = people.filter(pp => pp.d);       // paused / turned-off links are hidden
+  if (!shown.length) {
+    const p = document.createElement('p'); p.className = 'pempty';
+    p.textContent = people.length ? 'Nobody is sharing with you right now. Paused or switched-off links are hidden and come back when the owner turns them on.'
+      : 'Nobody yet. When someone sends you a progress link and you open it while signed in, they appear here.';
+    grid.appendChild(p); return;
+  }
+  const box = document.createElement('div'); box.className = 'pgrid';
+  shown.forEach(pp => {
+    const t = document.createElement('div'); t.className = 'tile' + (pp.d ? '' : ' off');
+    const n = document.createElement('div'); n.className = 'tn'; n.textContent = pp.name;
+    const big = document.createElement('div'); big.className = 'tp';
+    const sm = document.createElement('div'); sm.className = 'ts';
+    const d = pp.d;
+    if (!d) { big.textContent = '—'; sm.textContent = 'Not available right now'; }
+    else {
+      if (d.chapters) {
+        let v = 0; Object.keys(d.read || {}).forEach(k => { const c = BYKEY[k]; if (c) v += c.verses; });
+        const cn = Object.keys(d.read || {}).some(k => +k.split(':')[0] >= 66) ? 'catholic' : 'protestant';
+        big.textContent = (v / canonTotal(cn) * 100).toFixed(1) + '%';
+      } else {
+        let v = 0; Object.values(d.days || {}).forEach(x => { v += x; });
+        big.textContent = v + (v === 1 ? ' verse' : ' verses'); big.style.fontSize = '20px';
+      }
+      sm.textContent = [d.chapters ? 'Bible chart' : '', d.daily ? 'Daily chart' : ''].filter(Boolean).join(' · ') + ' · last change ' + when(new Date(d.updated_at));
+    }
+    const x = document.createElement('button'); x.className = 'tx'; x.textContent = '✕'; x.title = 'Remove from list';
+    x.onclick = async ev => {
+      ev.stopPropagation();
+      if (!confirm('Remove ' + pp.name + ' from your list?')) return;
+      const r = await sb.from('followed').delete().eq('share_id', pp.id);
+      if (r.error) { info.textContent = r.error.message; return; }
+      people = people.filter(z => z.id !== pp.id); drawPeople();
+    };
+    t.onclick = () => { location.href = location.pathname + '#share=' + pp.token; location.reload(); };
+    t.append(n, big, sm, x); box.appendChild(t);
+  });
+  grid.appendChild(box);
+}
+
 // ---- sharing: owner side ----
 // A share link = a random token in the `shares` table. Viewers call one public database function with the token;
-// it returns only what that link's level allows, and nothing at all if sharing is off or the link is paused/deleted.
+// it returns only the charts ticked for that link, and nothing at all if sharing is off or the link is paused/deleted.
 const shdlg = $('shdlg');
-const LEVEL_NAMES = {summary: 'Summary only', chart: 'Chapters, no dates', full: 'Everything, with dates'};
 let shLinks = [], shOn = false;
 const shMsg = t => { $('shmsg').textContent = t || ''; };
 const linkUrl = t => location.origin + location.pathname + '#share=' + t;
@@ -769,13 +894,20 @@ function shRender() {
   $('shtoggle').textContent = shOn ? 'Turn off for everyone' : 'Turn on';
   const box = $('shlist'); box.textContent = '';
   if (!shLinks.length) {
-    const p = document.createElement('p'); p.className = 'hint'; p.textContent = 'No links yet.'; box.appendChild(p);
+    const p = document.createElement('p'); p.className = 'hint'; p.textContent = 'No links yet — make one for a person or a group.'; box.appendChild(p);
   }
   shLinks.forEach(s => {
     const it = document.createElement('div'); it.className = 'shitem' + (s.active && shOn ? '' : ' off');
-    const t = document.createElement('div'); t.className = 'shtitle'; t.textContent = s.label || 'Unnamed link';
-    const m = document.createElement('div'); m.className = 'hint'; m.style.margin = '2px 0 6px';
-    m.textContent = (LEVEL_NAMES[s.level] || s.level) + (s.active ? '' : ' · paused');
+    const t = document.createElement('div'); t.className = 'shtitle'; t.textContent = (s.label || 'Unnamed link') + (s.active ? '' : ' · paused');
+    const m = document.createElement('div'); m.style.margin = '4px 0 2px';       // the two per-link switches
+    const addBox = (txt, key) => {
+      const lab = document.createElement('label'); lab.className = 'chk';
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !!s[key];
+      cb.onchange = () => shSetView(s, key, cb);
+      const sp = document.createElement('span'); sp.textContent = txt;
+      lab.appendChild(cb); lab.appendChild(sp); m.appendChild(lab);
+    };
+    addBox('Bible chart', 'show_chapters'); addBox('Daily chart', 'show_daily');
     const row = document.createElement('div'); row.className = 'row'; row.style.marginTop = '4px';
     const btn = (txt, fn) => { const b = document.createElement('button'); b.textContent = txt; b.onclick = fn; row.appendChild(b); };
     btn('Share', () => shSend(s));
@@ -787,7 +919,7 @@ function shRender() {
 async function shLoad() {
   shMsg('Loading…');
   const p = await sb.from('progress').select('sharing,display_name').eq('user_id', user.id).maybeSingle();
-  const l = await sb.from('shares').select('id,token,label,level,active').order('created_at');
+  const l = await sb.from('shares').select('id,token,label,show_chapters,show_daily,active').order('created_at');
   const err = p.error || l.error; if (err) { shMsg(err.message); return; }
   shOn = !!(p.data && p.data.sharing);
   $('shname').value = (p.data && p.data.display_name) || '';
@@ -804,8 +936,13 @@ async function shPatch(s, patch) {
   if (r.error) { shMsg(r.error.message); return; }
   Object.assign(s, patch); shRender();
 }
+async function shSetView(s, key, cb) {       // tick / untick one chart for one link, live
+  const other = key === 'show_chapters' ? 'show_daily' : 'show_chapters';
+  if (!cb.checked && !s[other]) { cb.checked = true; shMsg('Keep at least one chart on — or pause the link instead.'); return; }
+  await shPatch(s, {[key]: cb.checked});
+}
 async function shDelete(s) {
-  if (!confirm('Delete the link for “' + (s.label || 'Unnamed link') + '”? It stops working immediately.')) return;
+  if (!confirm('Delete the link for “' + (s.label || 'Unnamed link') + '”? It stops working immediately for everyone who has it.')) return;
   const r = await sb.from('shares').delete().eq('id', s.id);
   if (r.error) { shMsg(r.error.message); return; }
   shLinks = shLinks.filter(x => x.id !== s.id); shRender();
@@ -817,7 +954,7 @@ if (!viewToken && sbEnabled) {
     const r = await sb.from('progress').upsert({user_id: user.id, sharing: !shOn}, {onConflict: 'user_id'});
     if (r.error) { shMsg(r.error.message); return; }
     shOn = !shOn; shRender();
-    shMsg(shOn ? 'Sharing is on. Each link shows what its level allows.' : 'Sharing is off. Every link is blocked.');
+    shMsg(shOn ? 'Sharing is on. Each link shows only the charts ticked for it.' : 'Sharing is off. Every link is blocked.');
     syncNow();                                   // make sure viewers get current data
   };
   $('shname').onchange = async () => {
@@ -827,8 +964,10 @@ if (!viewToken && sbEnabled) {
   };
   $('shnew').onclick = async () => {
     const label = $('shlabel').value.trim();
-    if (!label) { shMsg('Give the link a name so you remember who it is for.'); return; }
-    const r = await sb.from('shares').insert({owner_id: user.id, label, level: $('shlevel').value}).select('id,token,label,level,active').single();
+    if (!label) { shMsg('Name the person or group this link is for.'); return; }
+    const sc = $('shchap').checked, sd = $('shday').checked;
+    if (!sc && !sd) { shMsg('Tick at least one chart to share.'); return; }
+    const r = await sb.from('shares').insert({owner_id: user.id, label, show_chapters: sc, show_daily: sd}).select('id,token,label,show_chapters,show_daily,active').single();
     if (r.error) { shMsg(/row-level/.test(r.error.message) ? 'You have reached the limit of 20 links.' : r.error.message); return; }
     $('shlabel').value = ''; shLinks.push(r.data); shRender();
     shMsg(shOn ? 'Link created. Tap Share on it to send.' : 'Link created, but sharing is OFF — turn it on for the link to work.');
@@ -839,45 +978,17 @@ if (!viewToken && sbEnabled) {
 const when = d => (d.toDateString() === new Date().toDateString()) ? hhmm(d)
   : d.toLocaleDateString(undefined, {day: 'numeric', month: 'short'}) + ' ' + hhmm(d);
 function vShow(msg) {
-  vLevel = null; grid.textContent = '';
+  vLevel = null; viewDays = null; grid.textContent = '';
   const p = document.createElement('p'); p.style.cssText = 'padding:24px 4px;color:var(--mut)'; p.textContent = msg;
   grid.appendChild(p); $('stats').textContent = ''; info.textContent = '';
 }
-function renderSummary(d) {
-  grid.textContent = '';
-  const s = d.summary;
-  if (!s) { vShow('Nothing shared yet.'); return; }
-  vLevel = 'summary';
-  $('stats').textContent = '';
-  const big = document.createElement('div'); big.className = 'bigstat';
-  big.textContent = (s.verses / s.totalVerses * 100).toFixed(1) + '%';
-  const sub = document.createElement('div'); sub.className = 'hint'; sub.style.margin = '-10px 0 14px';
-  sub.textContent = s.chapters + ' of ' + s.totalChapters + ' chapters read';
-  grid.appendChild(big); grid.appendChild(sub);
-  const tot = {}, name = {}, cat = {};
-  chapters.forEach(c => { const b = c.key.split(':')[0]; tot[b] = (tot[b] || 0) + 1; name[b] = c.book; cat[b] = c.cat; });
-  Object.keys(tot).forEach(b => {
-    const n = (s.books && s.books[b]) || 0;
-    const row = document.createElement('div'); row.className = 'bk';
-    const nm = document.createElement('b'); nm.textContent = name[b];
-    const bar = document.createElement('div'); bar.className = 'bar';
-    const fill = document.createElement('i'); fill.style.width = (n / tot[b] * 100) + '%'; fill.style.background = COLORS[cat[b]];
-    bar.appendChild(fill);
-    const ct = document.createElement('span'); ct.textContent = n + '/' + tot[b];
-    row.appendChild(nm); row.appendChild(bar); row.appendChild(ct); grid.appendChild(row);
-  });
-}
 function applyViewerUI() {
-  $('viewSeg').hidden = vLevel !== 'full';       // the daily view needs dates
+  $('viewSeg').hidden = vLevel !== 'both';       // switch between the two charts only when the link shows both
   applyViewUI();
-  if (vLevel === 'summary') {
-    ['legendCh', 'legendDay', 'rangeSeg'].forEach(id => { $(id).hidden = true; });
-    modeBtn.hidden = true; info.textContent = '';
-  }
 }
 async function loadShared() {
   let r;
-  try { r = await sb.rpc('get_shared_progress', {p_token: viewToken}); } catch (e) { r = {error: e}; }
+  try { r = await sb.rpc('get_shared_view', {p_token: viewToken}); } catch (e) { r = {error: e}; }
   if (r.error) {
     $('vstat').textContent = 'Can’t reach the server — showing the last update';
     if (!vLevel) vShow('Could not load. Check your connection and try again.');
@@ -885,27 +996,46 @@ async function loadShared() {
   }
   const d = r.data;
   if (!d) { vShow('This link isn’t available. It may have been paused or turned off by its owner.'); $('vstat').textContent = ''; return; }
-  const changedLevel = vLevel !== d.level;
+  const level = d.chapters && d.daily ? 'both' : d.chapters ? 'chapters' : 'daily';
+  const changed = vLevel !== level;
   document.title = (d.name ? d.name + '’s' : 'Shared') + ' Bible reading';
+  $('vname').textContent = 'Viewing ' + (d.name ? d.name + '’s' : 'someone else’s') + ' progress';
+  if (!vHint) vHint = 'Read-only — this is not your progress.';
+  $('vhint').textContent = vHint;
   $('h1').textContent = document.title;
   $('vstat').textContent = 'Live · last change ' + when(new Date(d.updated_at));
-  if (d.level === 'summary') {
-    renderSummary(d);
-    if (changedLevel) applyViewerUI();
-  } else {
-    vLevel = d.level;
-    read = {};
+  vLevel = level; read = {}; viewDays = null;
+  if (level !== 'daily') { const want = Object.keys(d.read || {}).some(k => +k.split(':')[0] >= 66) ? 'catholic' : 'protestant'; if (want !== canon) setCanon(want); }
+  if (level === 'daily') { viewDays = d.days || {}; view = 'daily'; }
+  else {
     Object.keys(d.read || {}).forEach(k => { read[k] = typeof d.read[k] === 'string' ? d.read[k] : true; });
-    if (d.level !== 'full' && view === 'daily') view = 'chapters';
-    if (changedLevel) { applyViewerUI(); relayout(); } else refreshView();
+    if (level === 'chapters') view = 'chapters';
   }
+  if (changed) { applyViewerUI(); relayout(); } else refreshView();
+  if (!followTried) { followTried = true; followIt(); }
+}
+let vHint = '', followTried = false;
+async function followIt() {
+  try {
+    const g = await sb.auth.getSession();
+    if (!g.data || !g.data.session) { vHint = 'Read-only — this is not your progress. Sign in on your own page to save this to your People list.'; }
+    else {
+      const r = await sb.rpc('follow_share', {p_token: viewToken});
+      const v = r.data;
+      vHint = 'Read-only — this is not your progress. ' + (v === 'saved' ? 'Saved to your People list.' : v === 'own' ? 'This is the view people get from your link.' : v === 'full' ? 'Your People list is full, so this was not saved.' : '');
+    }
+  } catch (e) {}
+  $('vhint').textContent = vHint;
 }
 if (viewToken) {
-  ['exp', 'imp', 'sync', 'share'].forEach(id => { $(id).hidden = true; });
+  ['sync', 'share'].forEach(id => { $(id).hidden = true; });
   $('vstat').hidden = false;
+  $('vbanner').hidden = false;
+  try { document.documentElement.classList.add('viewing'); document.body.classList.add('viewing'); } catch (e) {}
+  $('vhome').onclick = () => { location.assign(location.pathname); location.reload(); };
   if (!sbEnabled) vShow('Sharing isn’t available right now.');
   else {
-    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {auth: {persistSession: false, autoRefreshToken: false, detectSessionInUrl: false}});
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {auth: {persistSession: true, autoRefreshToken: true, detectSessionInUrl: false}});
     vShow('Loading…'); loadShared();
     setInterval(() => { if (document.visibilityState !== 'hidden') loadShared(); }, 20000);
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') loadShared(); });
