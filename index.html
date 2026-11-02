@@ -723,6 +723,16 @@ grid.addEventListener('pointerup', e => {
 });
 ['pointercancel', 'pointerleave'].forEach(t => grid.addEventListener(t, e => { if (e.pointerType !== 'mouse') clearTimeout(lp); }));
 
+// Tapping anywhere that isn't a chapter or a day clears the selection.
+document.addEventListener('pointerdown', e => {
+  if (selected == null && selDay == null) return;
+  const t = e.target;
+  if (!t || !t.closest || t.closest('.c, .d, dialog')) return;
+  if (selected != null) { segs[selected].forEach(x => x.classList.remove('sel')); selected = null; }
+  if (selDay) { const o = grid.querySelector('.d[data-date="' + selDay + '"]'); if (o) o.classList.remove('sel'); selDay = null; }
+  applyViewUI();                                   // puts the default hint back in the info line
+});
+
 // ---- cloud sync (Supabase) ----
 // Local-first: the app always works from this device's storage. When signed in, each change is
 // pushed (debounced) and the cloud copy is pulled on open, on return to the tab, and when back online.
