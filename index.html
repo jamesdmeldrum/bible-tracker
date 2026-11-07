@@ -45,6 +45,7 @@ h1{font-size:15px;margin:0;font-weight:600}
 .legend{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--mut)}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
 #info{height:20px;font-size:13px;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#gz{position:absolute;left:0;top:0;width:100%;height:100%;transform-origin:0 0}
 #grid{position:relative;flex:1;min-height:0;overflow-x:hidden;overflow-y:auto;touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 .c{position:absolute;border-radius:2px;cursor:pointer;-webkit-tap-highlight-color:transparent;
 background:color-mix(in srgb,var(--col) 16%,var(--empty));box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
@@ -385,27 +386,61 @@ function layoutLength(u, W) {
   return {rects, lines, h: y + u};
 }
 
-// "Fixed": identical square cells in an exact columns x rows grid.
+// "Fixed": identical cells in an exact columns x rows grid that fills the whole area. Cells are as close to
+// square as possible: the column count whose cell shape (after stretching the rows to use all the height)
+// is nearest to a square wins, so a whole row never goes unused at the bottom.
 function layoutFixed(W, H) {
   const g = 3, N = chapters.length;
-  let cols = 0;
+  let best = null;
   for (let k = 1; k <= N; k++) {
-    const s = (W - (k - 1) * g) / k;
-    if (s < 5) break;
-    if (Math.ceil(N / k) * (s + g) - g <= H) { cols = k; break; }
+    const w = (W - (k - 1) * g) / k;
+    if (w < 5) break;
+    const rows = Math.ceil(N / k), h = (H - (rows - 1) * g) / rows;
+    if (h < 5) continue;                                       // too many rows for this height
+    const score = Math.abs(Math.log(h / w));
+    if (!best || score < best.score) best = {k, w, h, score};
   }
-  if (!cols) cols = Math.max(1, Math.floor((W + g) / (9 + g)));   // too small to fit: scroll
-  const s = (W - (cols - 1) * g) / cols;
+  let cols, cw, ch;
+  if (best) { cols = best.k; cw = best.w; ch = best.h; }
+  else {                                                       // can't fit even at the smallest size: square cells, scroll
+    cols = Math.max(1, Math.floor((W + g) / (9 + g)));
+    cw = ch = (W - (cols - 1) * g) / cols;
+  }
   const rects = [], lines = [];
   chapters.forEach((c, i) => {
     const col = i % cols, row = Math.floor(i / cols);
-    const x = col * (s + g), y = row * (s + g);
-    rects.push({i, x, y, w: s, h: s, cl: false, cr: false});
-    if (c.first && col > 0) lines.push({x: x - g / 2 - 0.5, y: Math.max(0, y - g / 2), h: s + g});
+    const x = col * (cw + g), y = row * (ch + g);
+    rects.push({i, x, y, w: cw, h: ch, cl: false, cr: false});
+    if (c.first && col > 0) lines.push({x: x - g / 2 - 0.5, y: Math.max(0, y - g / 2), h: ch + g});
   });
-  return {rects, lines, h: Math.ceil(N / cols) * (s + g) - g};
+  return {rects, lines, h: Math.ceil(N / cols) * (ch + g) - g};
 }
 // ---- end layout ----
+
+// ---- zoom & pan (two fingers on a phone; ctrl+wheel / trackpad pinch and wheel on a laptop) ----
+const gz = document.createElement('div'); gz.id = 'gz';
+let zs = 1, ztx = 0, zty = 0, zH = 0;               // scale, translation, height of the drawn chart
+const ZMAX = 8;
+function applyZoom() {
+  const W = grid.clientWidth, H = grid.clientHeight;
+  zs = Math.min(ZMAX, Math.max(1, zs));
+  ztx = Math.min(0, Math.max(W - W * zs, ztx));
+  zty = Math.min(0, Math.max(Math.min(0, H - zH * zs), zty));
+  gz.style.transform = (zs === 1 && !ztx && !zty) ? '' : 'translate(' + ztx + 'px,' + zty + 'px) scale(' + zs + ')';
+}
+function resetZoom() { zs = 1; ztx = zty = 0; applyZoom(); }
+function zoomAt(px, py, s1) {                       // zoom keeping the point (px,py) of the screen fixed
+  s1 = Math.min(ZMAX, Math.max(1, s1));
+  const cx = (px - ztx) / zs, cy = (py - zty) / zs;
+  zs = s1; ztx = px - cx * s1; zty = py - cy * s1; applyZoom();
+}
+function revealChapter(i) {                         // pan so a searched chapter is on screen
+  const e = segs[i] && segs[i][0]; if (!e) return;
+  const x = parseFloat(e.style.left), y = parseFloat(e.style.top), w = parseFloat(e.style.width), h = parseFloat(e.style.height);
+  const W = grid.clientWidth, H = grid.clientHeight;
+  const sx = ztx + x * zs, sy = zty + y * zs;
+  if (sx < 0 || sy < 0 || sx + w * zs > W || sy + h * zs > H) { ztx = W / 2 - (x + w / 2) * zs; zty = H / 2 - (y + h / 2) * zs; applyZoom(); }
+}
 
 // ---- mode ----
 const MODE_KEY = 'bibleModeV1';
@@ -416,13 +451,14 @@ const setModeLabel = () => { modeBtn.textContent = mode === 'length' ? 'Size: by
 modeBtn.onclick = () => {
   mode = mode === 'length' ? 'fixed' : 'length';
   try { localStorage.setItem(MODE_KEY, mode); } catch (e) {}
-  setModeLabel(); relayout();
+  setModeLabel(); resetZoom(); relayout();
 };
 setModeLabel();
 
 // ---- rendering ----
 function draw(res) {
-  grid.textContent = '';
+  if (gz.parentNode !== grid) { grid.textContent = ''; grid.appendChild(gz); }
+  gz.textContent = '';
   segs.forEach(a => { a.length = 0; });
   const frag = document.createDocumentFragment();
   res.rects.forEach(r => {
@@ -438,7 +474,8 @@ function draw(res) {
     s.style.cssText = 'left:' + l.x + 'px;top:' + l.y + 'px;height:' + l.h + 'px';
     frag.appendChild(s);
   });
-  grid.appendChild(frag);
+  gz.appendChild(frag);
+  zH = res.h; applyZoom();
   paint();
   if (selected != null) segs[selected].forEach(e => e.classList.add('sel'));
   hlSet.forEach(i => segs[i].forEach(e => e.classList.add('hl')));
@@ -664,17 +701,19 @@ function applyViewUI() {
   $('canon').hidden = daily || people || !!viewToken;
   $('colors').hidden = daily || people;
   $('qform').hidden = view !== 'chapters' || (viewToken && vLevel === 'daily');
-  grid.style.touchAction = '';
+  grid.style.touchAction = view === 'chapters' ? 'none' : '';      // chapter chart: we handle pinch / two-finger pan ourselves
+  grid.style.overflowY = view === 'chapters' ? 'hidden' : '';
   document.querySelectorAll('#viewSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === view));
   document.querySelectorAll('#rangeSeg button').forEach(b => b.classList.toggle('on', b.dataset.r === range));
   info.textContent = people ? 'People who shared their progress with you. Tap a tile to view it.'
-    : viewToken ? (daily ? 'Tap a day to see what was read.' : 'Tap a chapter to see it.')
-    : daily ? 'Tap a day to see what you read.' : 'Tap a chapter to see it. Double-tap to mark read. Long-press to edit date.';
+    : viewToken ? (daily ? 'Tap a day to see what was read.' : 'Tap a chapter to see it. Pinch to zoom.')
+    : daily ? 'Tap a day to see what you read.' : 'Tap a chapter to see it. Double-tap to mark read. Long-press to edit date. Pinch to zoom.';
   if (people) $('stats').textContent = '';
 }
 function setView(v) {
   if (v === view) return;
   view = v; selected = null; selDay = null;
+  if (v !== 'chapters') resetZoom();
   if (v !== 'people') { try { localStorage.setItem(VIEW_KEY, view); } catch (e) {} }
   applyViewUI(); relayout();
   if (v === 'people') loadPeople();
@@ -707,8 +746,40 @@ grid.addEventListener('click', e => {
 });
 grid.addEventListener('contextmenu', e => { e.preventDefault(); const i = idx(e); if (i != null && !longFired) openEdit(i); });
 
+// Two fingers: pinch to zoom, drag to move. The single-finger taps below are suspended while this is happening.
+const touches = new Map(); let pinch = null, gestureTouch = false;
+const touchPair = () => { const v = [...touches.values()]; return [v[0], v[1]]; };
 grid.addEventListener('pointerdown', e => {
-  if (e.pointerType === 'mouse') return;
+  if (e.pointerType === 'mouse' || view !== 'chapters') return;
+  touches.set(e.pointerId, {x: e.clientX, y: e.clientY});
+  if (touches.size === 2) {
+    const [a, b] = touchPair(), r = grid.getBoundingClientRect();
+    pinch = {d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, mx: (a.x + b.x) / 2 - r.left, my: (a.y + b.y) / 2 - r.top, s0: zs, tx0: ztx, ty0: zty};
+    gestureTouch = true; clearTimeout(lp);
+  }
+});
+grid.addEventListener('pointermove', e => {
+  if (!pinch || !touches.has(e.pointerId)) return;
+  touches.set(e.pointerId, {x: e.clientX, y: e.clientY});
+  const [a, b] = touchPair(), r = grid.getBoundingClientRect();
+  const d = Math.hypot(a.x - b.x, a.y - b.y), mx = (a.x + b.x) / 2 - r.left, my = (a.y + b.y) / 2 - r.top;
+  const s1 = Math.min(ZMAX, Math.max(1, pinch.s0 * d / pinch.d0));
+  const cx = (pinch.mx - pinch.tx0) / pinch.s0, cy = (pinch.my - pinch.ty0) / pinch.s0;
+  zs = s1; ztx = mx - cx * s1; zty = my - cy * s1; applyZoom();
+});
+const endTouch = e => {
+  touches.delete(e.pointerId);
+  if (touches.size < 2) pinch = null;
+  if (!touches.size) gestureTouch = false;
+};
+grid.addEventListener('wheel', e => {
+  if (view !== 'chapters') return;
+  if (e.ctrlKey) { e.preventDefault(); const r = grid.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, zs * Math.exp(-e.deltaY * 0.01)); }
+  else if (zs > 1) { e.preventDefault(); ztx -= e.deltaX; zty -= e.deltaY; applyZoom(); }
+}, {passive: false});
+
+grid.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'mouse' || gestureTouch) return;
   const i = idx(e); if (i == null) return;
   longFired = false; clearTimeout(lp);
   lp = setTimeout(() => { longFired = true; showInfo(i); openEdit(i); if (navigator.vibrate) navigator.vibrate(25); }, 500);
@@ -716,12 +787,14 @@ grid.addEventListener('pointerdown', e => {
 grid.addEventListener('pointerup', e => {
   if (e.pointerType === 'mouse') return;
   clearTimeout(lp);
+  if (gestureTouch) { endTouch(e); return; }        // the end of a pinch / two-finger drag is not a tap
+  touches.delete(e.pointerId);
   const i = idx(e); if (i == null || longFired) { setTimeout(() => longFired = false, 400); return; }
   const now = Date.now();
   if (lastTap.i === i && now - lastTap.t < 350) { toggle(i); lastTap = {i: null, t: 0}; }
   else { showInfo(i); lastTap = {i, t: now}; }
 });
-['pointercancel', 'pointerleave'].forEach(t => grid.addEventListener(t, e => { if (e.pointerType !== 'mouse') clearTimeout(lp); }));
+['pointercancel', 'pointerleave'].forEach(t => grid.addEventListener(t, e => { if (e.pointerType !== 'mouse') { clearTimeout(lp); endTouch(e); } }));
 
 // Tapping anywhere that isn't a chapter or a day clears the selection.
 document.addEventListener('pointerdown', e => {
@@ -885,7 +958,7 @@ $('canon').value = canon;
 $('canon').onchange = () => {
   setCanon($('canon').value);
   try { localStorage.setItem(CANON_KEY, canon); } catch (e) {}
-  $('q').value = ''; applyViewUI(); relayout();
+  $('q').value = ''; resetZoom(); applyViewUI(); relayout();
 };
 
 // ---- search ----
@@ -917,12 +990,12 @@ function runSearch(enter) {
   if (!res.length) { clearHl(); info.textContent = 'No match'; return; }
   if (res.length === 1) {
     setHl(res); showInfo(res[0], true);
-    const e = segs[res[0]][0]; try { e && e.scrollIntoView({block: 'nearest'}); } catch (x) {}
+    revealChapter(res[0]);
   } else if (enter) {
     setHl(res);
     const c0 = chapters[res[0]];
     info.textContent = res.length + ' chapters highlighted' + (res.every(i => chapters[i].book === c0.book) ? ' · ' + c0.book : '');
-    const e = segs[res[0]][0]; try { e && e.scrollIntoView({block: 'nearest'}); } catch (x) {}
+    revealChapter(res[0]);
   } else { clearHl(); info.textContent = res.length + ' chapters match — press Enter to highlight them'; }
 }
 $('q').addEventListener('input', () => runSearch(false));
