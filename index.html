@@ -1162,7 +1162,9 @@ async function loadPeople() {
 const shareBtn = document.createElement('button');
 shareBtn.className = 'setrow shrow';
 shareBtn.innerHTML = '<span>Share your progress</span><span class="val">›</span>';
+let nickEditing = false;   // while a nickname box is open, don't redraw (the on-screen keyboard resizes the grid and would wipe it)
 function drawPeople() {
+  if (nickEditing) return;
   grid.textContent = '';
   if (!people) return;
   if (!viewToken && sbEnabled) grid.appendChild(shareBtn);
@@ -1193,9 +1195,9 @@ function drawPeople() {
     e.onclick = ev => {
       ev.stopPropagation();
       const inp = document.createElement('input'); inp.className = 'tni'; inp.maxLength = 40; inp.value = pp.nick; inp.placeholder = 'Nickname';
-      let done = false;
+      let done = false; nickEditing = true;
       const finish = async save => {
-        if (done) return; done = true;
+        if (done) return; done = true; nickEditing = false;
         if (save) {
           const v = inp.value.trim().slice(0, 40);
           if (v !== pp.nick) {
