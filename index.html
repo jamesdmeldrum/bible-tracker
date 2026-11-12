@@ -15,30 +15,30 @@
 </script>
 <title>Bible Reading Tracker</title>
 <style>
-:root{--bg:#0d1117;--fg:#e6edf3;--mut:#8b949e;--empty:#161b22;--line:rgba(255,255,255,.13);
+:root{--mono:#d0d7de;--bg:#0d1117;--fg:#e6edf3;--mut:#8b949e;--empty:#161b22;--line:rgba(255,255,255,.13);
 --ot:#2ea043;--wis:#d29922;--gos:#a371f7;--nt:#58a6ff;
 --g-law:#2ea043;--g-hist:#d29922;--g-wis:#e07b39;--g-maj:#e5534b;--g-min:#d6609f;--g-gos:#a371f7;--g-acts:#39c5cf;--g-paul:#58a6ff;--g-gen:#6c71e0;--g-rev:#b8e986}
-html[data-theme=light]{--bg:#ffffff;--fg:#1f2328;--mut:#656d76;--empty:#ebedf0;--line:rgba(0,0,0,.14);--ot:#1a7f37;--wis:#bf8700;--gos:#8250df;--nt:#0969da;
---g-law:#1a7f37;--g-hist:#bf8700;--g-wis:#c4541c;--g-maj:#cf222e;--g-min:#bf3989;--g-gos:#8250df;--g-acts:#0e8a96;--g-paul:#0969da;--g-gen:#4c51c9;--g-rev:#5a8f1a}
+html[data-theme=light]{--mono:#2b2620;--bg:#f7f2e8;--fg:#2b2620;--mut:#7a6f60;--empty:#e8e0d0;--line:rgba(60,45,20,.18);--ot:#2f6f5e;--wis:#bf8700;--gos:#8250df;--nt:#a8452f;
+--g-law:#8fc1a2;--g-hist:#d4bd7d;--g-wis:#d59b7b;--g-maj:#d3847d;--g-min:#d080ab;--g-gos:#9f80d0;--g-acts:#86c6cb;--g-paul:#7da4d4;--g-gen:#7e7fd2;--g-rev:#b2d180}
 html[data-theme=light] .c{box-shadow:inset 0 0 0 1px rgba(0,0,0,.05)}
 html[data-theme=light] .c.r{box-shadow:none}
-html[data-theme=light] .c.sel,html[data-theme=light] .d.sel{outline-color:#1f2328}
+html[data-theme=light] .c.sel,html[data-theme=light] .d.sel{outline-color:#2b2620}
 html[data-theme=light] .d{box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
 html[data-theme=light] .d.today{box-shadow:inset 0 0 0 1px rgba(0,0,0,.6)}
-html[data-theme=light] button{background:#f6f8fa;color:#1f2328;border-color:#d0d7de}
-html[data-theme=light] button:active{background:#eaeef2}
+html[data-theme=light] button{background:#efe8d9;color:#2b2620;border-color:#d9cfba}
+html[data-theme=light] button:active{background:#e3dac7}
 html[data-theme=light] .setrow,html[data-theme=light] #viewSeg button,html[data-theme=light] .legkey,html[data-theme=light] button.icon{background:transparent}
-html[data-theme=light] .setrow:active,html[data-theme=light] #viewSeg button:active,html[data-theme=light] button.icon:active{background:#eaeef2}
-html[data-theme=light] .setrow{color:#1f2328}
-html[data-theme=light] .seg button.on{background:#ddf4ff;border-color:#0969da;color:#0550ae}
-html[data-theme=light] #q,html[data-theme=light] dialog input,html[data-theme=light] dialog select{background:#fff;color:#1f2328;border-color:#d0d7de;color-scheme:light}
-html[data-theme=light] dialog{background:#fff;color:#1f2328;border-color:#d0d7de}
-html[data-theme=light] .shitem{border-color:#d0d7de}
-html[data-theme=light] #vbanner{background:#ddf4ff;border-color:#54aeff}
-html[data-theme=light] #vhint{color:#0550ae}
-html[data-theme=light].viewing,html[data-theme=light] body.viewing{background:#f0f7ff}
-html[data-theme=light] .tile{background:#f6f8fa;border-color:#d0d7de}
-html[data-theme=light] .tile:active{background:#eaeef2}
+html[data-theme=light] .setrow:active,html[data-theme=light] #viewSeg button:active,html[data-theme=light] button.icon:active{background:#e3dac7}
+html[data-theme=light] .setrow{color:#2b2620}
+html[data-theme=light] .seg button.on{background:#efe3c8;border-color:#a8452f;color:#8a3623}
+html[data-theme=light] #q,html[data-theme=light] dialog input,html[data-theme=light] dialog select{background:#fffdf8;color:#2b2620;border-color:#d9cfba;color-scheme:light}
+html[data-theme=light] dialog{background:#fffdf8;color:#2b2620;border-color:#d9cfba}
+html[data-theme=light] .shitem{border-color:#d9cfba}
+html[data-theme=light] #vbanner{background:#efe3c8;border-color:#c98a6a}
+html[data-theme=light] #vhint{color:#8a3623}
+html[data-theme=light].viewing,html[data-theme=light] body.viewing{background:#f1ebdd}
+html[data-theme=light] .tile{background:#efe8d9;border-color:#d9cfba}
+html[data-theme=light] .tile:active{background:#e3dac7}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font:14px system-ui,-apple-system,sans-serif;overscroll-behavior:none}
 body{display:flex;flex-direction:column;padding:max(8px,env(safe-area-inset-top)) 8px max(8px,env(safe-area-inset-bottom))}
@@ -127,6 +127,7 @@ dialog select{width:100%;font:inherit;padding:8px;background:#0d1117;color:var(-
 dialog .chk input{width:20px;height:20px;margin:0;padding:0;flex:0 0 auto}
 .shitem .chk{display:inline-flex;margin:0 14px 6px 0}
 #sacct{margin:0;word-break:break-all}
+#grid.chv{overflow:hidden;overflow:clip;overflow-clip-margin:12px}   /* chapter chart: let the highlight glow spill past the edge instead of being cut off */
 .c.hl{box-shadow:0 0 0 2px #ffd33d,0 0 10px 3px rgba(255,211,61,.85);z-index:3}
 .shrow{margin:0 0 12px;padding:13px 14px;border:1px solid var(--line);border-radius:12px}
 #sync .cyc{display:inline-grid}
@@ -342,8 +343,9 @@ const GROUPS = [
 const GROUP_OF = {}; GROUPS.forEach(g => g[2].split(',').forEach(n => { GROUP_OF[n] = g[0]; }));
 const COLOR_KEY = 'bibleColorsV1';
 let cmode = 'simple';
-try { if (localStorage.getItem(COLOR_KEY) === 'detailed') cmode = 'detailed'; } catch (e) {}
-const colorOf = c => cmode === 'simple' ? (c.cat === 'nt' || c.cat === 'gos' ? 'var(--nt)' : 'var(--ot)') : 'var(--g-' + GROUP_OF[c.book] + ')';
+try { const cm = localStorage.getItem(COLOR_KEY); if (cm === 'detailed' || cm === 'mono') cmode = cm; } catch (e) {}
+const CMODES = ['simple', 'detailed', 'mono'], CMODE_LABEL = {simple: 'Simple', detailed: 'Detailed', mono: 'Monochrome'};
+const colorOf = c => cmode === 'mono' ? 'var(--mono)' : cmode === 'simple' ? (c.cat === 'nt' || c.cat === 'gos' ? 'var(--nt)' : 'var(--ot)') : 'var(--g-' + GROUP_OF[c.book] + ')';
 const sizeOf = v => v <= 15 ? 1 : v <= 30 ? 2 : 3;   // S / M / L
 
 // Extra books of the Catholic canon. Their keys (66-72) never change, so saved progress stays valid.
@@ -695,7 +697,7 @@ function stripModel(W, today0, start) {
 // Colour scale (what the legend shows): six steps, empty then five greens.
 const SCALE = [0, 10, 30, 50, 70, 85];
 const isLight = () => { try { return document.documentElement.getAttribute('data-theme') === 'light'; } catch (e) { return false; } };
-const dayColor = p => 'color-mix(in srgb, #39d353 ' + (Math.min(p, 85) / 85 * 100).toFixed(1) + '%, ' + (isLight() ? '#c9ecd2' : '#0e4429') + ')';
+const dayColor = p => 'color-mix(in srgb, ' + (isLight() ? '#2f6f5e' : '#39d353') + ' ' + (Math.min(p, 85) / 85 * 100).toFixed(1) + '%, ' + (isLight() ? '#cfe3d8' : '#0e4429') + ')';
 // Which of the five levels a day gets: the busiest day shown is level 5; the others are spread over 1-4
 // by how many of the shown reading days (by verses) they beat.
 function dayLevels(values) {
@@ -825,7 +827,7 @@ function applyViewUI() {
   $('tip').hidden = !(tipPending && view === 'chapters' && !viewToken);
   $('qform').hidden = view !== 'chapters' || (viewToken && vLevel === 'daily');
   grid.style.touchAction = view === 'chapters' ? 'none' : '';      // chapter chart: we handle pinch / two-finger pan ourselves
-  grid.style.overflowY = view === 'chapters' ? 'hidden' : '';
+  grid.classList.toggle('chv', view === 'chapters');
   document.querySelectorAll('#viewSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === view));
   document.querySelectorAll('#rangeSeg button').forEach(b => b.classList.toggle('on', b.dataset.r === range));
   info.textContent = '';
@@ -1069,7 +1071,9 @@ function renderLegend() {
   const box = $('legendCh'); box.textContent = '';
   const item = it => { const sp = document.createElement('span'), i = document.createElement('i');
     i.style.background = it[0]; sp.appendChild(i); sp.appendChild(document.createTextNode(it[1])); return sp; };
-  if (cmode === 'simple') {
+  if (cmode === 'mono') {
+    box.appendChild(item(['var(--mono)', 'Read']));
+  } else if (cmode === 'simple') {
     [['var(--ot)', 'Old Testament'], ['var(--nt)', 'New Testament']].forEach(it => box.appendChild(item(it)));
   } else {
     // Ten groups: a compact strip of swatches; tap it to open the labelled key.
@@ -1087,10 +1091,10 @@ function renderLegend() {
       box.appendChild(full);
     }
   }
-  setRow(cbtn, 'Chapter colours', cmode === 'simple' ? 'Simple' : 'Detailed');
+  setRow(cbtn, 'Chapter colours', CMODE_LABEL[cmode]);
 }
 cbtn.onclick = () => {
-  cmode = cmode === 'simple' ? 'detailed' : 'simple';
+  cmode = CMODES[(CMODES.indexOf(cmode) + 1) % CMODES.length];
   try { localStorage.setItem(COLOR_KEY, cmode); } catch (e) {}
   renderLegend(); relayout();
 };
@@ -1400,7 +1404,7 @@ function applyTheme() {
   const light = themePref === 'light' || (themePref === 'auto' && phoneLight());
   try {
     document.documentElement.setAttribute('data-theme', light ? 'light' : 'dark');
-    const m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', light ? '#ffffff' : '#0d1117');
+    const m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', light ? '#f7f2e8' : '#0d1117');
   } catch (e) {}
   setRow($('theme'), 'Theme', THEME_LABEL[themePref]);
   renderScale(); relayout();
