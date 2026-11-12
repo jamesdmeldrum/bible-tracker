@@ -128,6 +128,7 @@ dialog .chk input{width:20px;height:20px;margin:0;padding:0;flex:0 0 auto}
 .shitem .chk{display:inline-flex;margin:0 14px 6px 0}
 #sacct{margin:0;word-break:break-all}
 .c.hl{box-shadow:0 0 0 2px #ffd33d,0 0 10px 3px rgba(255,211,61,.85);z-index:3}
+.shrow{margin:0 0 12px;padding:13px 14px;border:1px solid var(--line);border-radius:12px}
 #sync .cyc{display:inline-grid}
 #sync .cyc>span{grid-area:1/1;text-align:left;animation:cyc 10s ease-in-out infinite}
 #sync .cyc>span:nth-child(2){animation-delay:-5s}
@@ -184,7 +185,6 @@ body.viewing #grid{border:1px dashed #388bfd;border-radius:6px}
   <div class="sheethead"><h2>Settings</h2><button id="setclose" class="icon" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
   <div class="group" id="accgroup"><div class="gl">Account</div>
     <button id="sync" class="setrow" hidden></button>
-    <button id="share" class="setrow" hidden><span>Share your progress</span><span class="val">›</span></button>
   </div>
   <div class="group"><div class="gl">Chart</div>
     <label class="setrow" id="canonRow"><span>Canon</span><select id="canon"></select></label>
@@ -234,7 +234,7 @@ body.viewing #grid{border:1px dashed #388bfd;border-radius:6px}
   <input id="shname" placeholder="Name viewers see (e.g. James)" maxlength="40">
   <div id="shlist"></div>
   <p class="hint" style="margin-top:14px">Make a link for a person or a group. Everyone using that link sees the same thing, and pausing or deleting it stops access for all of them.</p>
-  <input id="shlabel" placeholder="Person or group name (only you see this)" maxlength="40">
+  <input id="shlabel" placeholder="Who are you sharing with? (only you see this)" maxlength="40">
   <p class="hint" style="margin:12px 0 0">What they can see:</p>
   <label class="chk"><input type="checkbox" id="shchap" checked><span>Bible chart</span></label>
   <label class="chk"><input type="checkbox" id="shday"><span>Daily chart</span></label>
@@ -1017,14 +1017,13 @@ function setCycle() {
   sbtn.appendChild(w);
 }
 function updateSyncUI() {
-  if (!sbEnabled || viewToken) { sbtn.hidden = true; $('share').hidden = true; $('accgroup').hidden = true; return; }
+  if (!sbEnabled || viewToken) { sbtn.hidden = true; $('accgroup').hidden = true; return; }
   sbtn.hidden = false;
   // Signed out: the sign-in button lives on the home screen. Signed in: it moves into the settings sheet.
   const home = $('homeSync');
   if (!user) { if (sbtn.parentNode !== home) home.appendChild(sbtn); sbtn.classList.add('pill'); sbtn.classList.remove('setrow'); }
-  else { if (sbtn.parentNode === home) $('accgroup').insertBefore(sbtn, $('share')); sbtn.classList.remove('pill'); sbtn.classList.add('setrow'); }
+  else { if (sbtn.parentNode === home) $('accgroup').appendChild(sbtn); sbtn.classList.remove('pill'); sbtn.classList.add('setrow'); }
   $('accgroup').hidden = !user;
-  $('share').hidden = !user;
   $('tabPeople').hidden = !user;
   $('viewSeg').classList.toggle('two', !user);
   if (!user && view === 'people') setView('chapters');
@@ -1158,9 +1157,13 @@ async function loadPeople() {
   peopleBusy = false;
   if (view === 'people') drawPeople();
 }
+const shareBtn = document.createElement('button');
+shareBtn.className = 'setrow shrow';
+shareBtn.innerHTML = '<span>Share your progress</span><span class="val">›</span>';
 function drawPeople() {
   grid.textContent = '';
   if (!people) return;
+  if (!viewToken && sbEnabled) grid.appendChild(shareBtn);
   if (!people.length) {
     const p = document.createElement('p'); p.className = 'pempty';
     p.textContent = 'Nobody to show right now. When someone sends you a progress link and you open it while signed in, they appear here for as long as their link is active.';
@@ -1200,7 +1203,7 @@ const linkUrl = t => location.origin + location.pathname + '#share=' + t;
 
 function shRender() {
   $('shstate').textContent = shOn ? 'Sharing is ON' : 'Sharing is OFF';
-  $('shtoggle').textContent = shOn ? 'Turn off for everyone' : 'Turn on';
+  $('shtoggle').textContent = shOn ? 'Stop sharing progress' : 'Share progress';
   const box = $('shlist'); box.textContent = '';
   if (!shLinks.length) {
     const p = document.createElement('p'); p.className = 'hint'; p.textContent = 'No links yet — make one for a person or a group.'; box.appendChild(p);
@@ -1257,7 +1260,7 @@ async function shDelete(s) {
   shLinks = shLinks.filter(x => x.id !== s.id); shRender();
 }
 if (!viewToken && sbEnabled) {
-  $('share').onclick = () => { if (!user) return; shdlg.showModal(); shLoad(); };
+  shareBtn.onclick = () => { if (!user) return; shdlg.showModal(); shLoad(); };
   $('shclose').onclick = () => shdlg.close();
   $('shtoggle').onclick = async () => {
     const r = await sb.from('progress').upsert({user_id: user.id, sharing: !shOn}, {onConflict: 'user_id'});
@@ -1346,7 +1349,7 @@ async function followIt() {
   $('vhint').textContent = vHint;
 }
 if (viewToken) {
-  ['sync', 'share'].forEach(id => { $(id).hidden = true; });
+  $('sync').hidden = true;
   $('vstat').hidden = false;
   $('vbanner').hidden = false;
   try { document.documentElement.classList.add('viewing'); document.body.classList.add('viewing'); } catch (e) {}
@@ -1390,7 +1393,7 @@ const setdlg = $('setdlg');
 $('gear').onclick = () => setdlg.showModal();
 $('setclose').onclick = () => setdlg.close();
 setdlg.addEventListener('click', e => { if (e.target === setdlg) setdlg.close(); });     // tap outside the sheet
-['sync', 'share'].forEach(id => $(id).addEventListener('click', () => setdlg.close()));  // those open their own dialogs
+$('sync').addEventListener('click', () => setdlg.close());  // opens its own dialog
 
 updateSyncUI();
 
