@@ -63,6 +63,7 @@ background:color-mix(in srgb,var(--col) 16%,var(--empty));box-shadow:inset 0 0 0
 .d{position:absolute;border-radius:2px;cursor:pointer;-webkit-tap-highlight-color:transparent;background:var(--empty);box-shadow:inset 0 0 0 1px rgba(255,255,255,.05);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;text-shadow:0 0 3px rgba(0,0,0,.75)}
 .d.today{box-shadow:inset 0 0 0 1px rgba(255,255,255,.6)}
 .d.sel{outline:2px solid #fff;outline-offset:1px;z-index:2}
+.dy{font-weight:600;color:var(--fg)}
 .dl{position:absolute;font-size:10px;line-height:12px;color:var(--mut);pointer-events:none;white-space:nowrap}
 footer{display:flex;flex-wrap:wrap;gap:8px;padding-top:6px;align-items:center;font-size:12px;color:var(--mut)}
 button{font:inherit;color:var(--fg);background:#21262d;border:1px solid #30363d;border-radius:6px;padding:6px 10px}
@@ -135,7 +136,7 @@ body.viewing #grid{border:1px dashed #388bfd;border-radius:6px}
   <button id="colors"></button>
   <button id="theme"></button>
   <button id="mode"></button>
-  <div class="seg" id="rangeSeg" hidden><button data-r="w">1W</button><button data-r="m">1M</button><button data-r="q">3M</button><button data-r="y">12M</button></div>
+  <div class="seg" id="rangeSeg" hidden><button data-r="w">1W</button><button data-r="m">1M</button><button data-r="q">3M</button><button data-r="y">12M</button><button data-r="a">All</button></div>
 </footer>
 
 <dialog id="dlg">
@@ -547,15 +548,19 @@ let view = 'chapters', range = 'q', selDay = null;
 try {
   view = localStorage.getItem(VIEW_KEY) === 'daily' ? 'daily' : 'chapters';
   const rr = localStorage.getItem(RANGE_KEY);
-  if (rr === 'w' || rr === 'm' || rr === 'q' || rr === 'y') range = rr;
+  if (rr === 'w' || rr === 'm' || rr === 'q' || rr === 'y' || rr === 'a') range = rr;
 } catch (e) {}
 
 // ---- daily (pure) ----
 const pad2 = n => String(n).padStart(2, '0');
 const ymd = d => d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
 const parseYmd = s => { const p = s.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); };
-function rangeStart(now, r) {
+function rangeStart(now, r, first) {
   const s = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (r === 'a') {                       // all time: from the first day anything was logged
+    const f = first ? parseYmd(first) : null;
+    return f && f <= s ? f : rangeStart(now, 'q');
+  }
   if (r === 'w') { s.setDate(s.getDate() - 6); return s; }
   const n = r === 'm' ? 1 : r === 'q' ? 3 : 12;
   const y = now.getFullYear(), m = now.getMonth() - n;
@@ -564,9 +569,9 @@ function rangeStart(now, r) {
 }
 // Weeks run Monday..Sunday. Orientation 'h' = weeks as columns (GitHub style);
 // 'v' = weeks as rows, chosen automatically when it gives clearly bigger cells (portrait phones).
-function dailyModel(W, H, r, now) {
+function dailyModel(W, H, r, now, firstDay) {
   const today0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const start = rangeStart(now, r);
+  const start = rangeStart(now, r, firstDay);
   const first = new Date(start); first.setDate(first.getDate() - (start.getDay() + 6) % 7);
   const cells = [];
   let k = 0;
@@ -575,6 +580,7 @@ function dailyModel(W, H, r, now) {
   }
   if (cells.length) cells[cells.length - 1].isToday = true;
   const nW = Math.floor((k - 1) / 7) + 1;
+  if (r === 'a' && nW > 53) return stripModel(W, today0, start);   // more than a year: one strip per calendar year
   const L = 30, T = 18, cap = 44;
   const fit = o => {
     const cols = o === 'h' ? nW : 7, rows = o === 'h' ? 7 : nW;
@@ -586,6 +592,26 @@ function dailyModel(W, H, r, now) {
   const o = fv.s > fh.s * 1.15 ? 'v' : 'h';
   const f = o === 'h' ? fh : fv;
   return {cells, nW, o, s: f.s, g: f.g, L, T};
+}
+// All time, longer than a year: calendar years stacked newest first, each a normal week-by-day strip.
+function stripModel(W, today0, start) {
+  const L = 30, hdr = 16, cols = 54;
+  let g = 1, s = Math.min((W - L - (cols - 1) * g) / cols, 44);
+  if (s >= 9) { g = 2; s = Math.min((W - L - (cols - 1) * g) / cols, 44); }
+  s = Math.max(3, s);
+  const stripH = hdr + 7 * (s + g) + 12;
+  const cells = [], strips = [];
+  for (let y = today0.getFullYear(); y >= start.getFullYear(); y--) {
+    const si = strips.length; strips.push({year: y, y: si * stripH});
+    const jan1 = new Date(y, 0, 1), lead = (jan1.getDay() + 6) % 7;
+    const from = y === start.getFullYear() ? start : jan1;
+    const to = y === today0.getFullYear() ? today0 : new Date(y, 11, 31);
+    for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+      const k = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - jan1) / 864e5) + lead;
+      cells.push({date: ymd(d), w: Math.floor(k / 7), dow: k % 7, month: d.getMonth(), strip: si, isToday: +d === +today0});
+    }
+  }
+  return {cells, strips, o: 'h', s, g, L, T: 0, hdr, stripH, nW: cols};
 }
 // ---- end daily ----
 
@@ -628,15 +654,16 @@ function compress(list) {
 }
 
 function drawDaily(W, H) {
-  const m = dailyModel(W, H, range, new Date());
   const {pts, list} = dailyTotals();
+  let first = null; Object.keys(pts).forEach(d => { if (pts[d] > 0 && (first === null || d < first)) first = d; });
+  const m = dailyModel(W, H, range, new Date(), first);
   const step = m.s + m.g, off = (m.s - 12) / 2;
   const lvl = dayLevels(m.cells.map(c => pts[c.date] || 0));
   const frag = document.createDocumentFragment();
   let total = 0, active = 0;   // total = chapters read in range
-  const label = (txt, x, y, w, align) => {
+  const label = (txt, x, y, w, align, cls) => {
     const e = document.createElement('div');
-    e.className = 'dl'; e.textContent = txt;
+    e.className = 'dl' + (cls ? ' ' + cls : ''); e.textContent = txt;
     e.style.cssText = 'left:' + x + 'px;top:' + y + 'px;' + (w ? 'width:' + w + 'px;text-align:' + align + ';' : '');
     frag.appendChild(e);
   };
@@ -644,7 +671,7 @@ function drawDaily(W, H) {
     const p = pts[c.date] || 0;
     if (p) { total += viewDays ? p : list[c.date].length; active++; }
     const x = m.L + (m.o === 'h' ? c.w : c.dow) * step;
-    const y = m.T + (m.o === 'h' ? c.dow : c.w) * step;
+    const y = m.strips ? m.strips[c.strip].y + m.hdr + c.dow * step : m.T + (m.o === 'h' ? c.dow : c.w) * step;
     const d = document.createElement('div');
     d.className = 'd' + (c.isToday ? ' today' : '');
     d.dataset.date = c.date;
@@ -652,6 +679,26 @@ function drawDaily(W, H) {
       (p ? 'background:' + levelColor(lvl(p)) + ';' : '');
     frag.appendChild(d);
   });
+  if (m.strips) {                                   // labels for the year strips
+    m.strips.forEach((st, si) => {
+      label(String(st.year), 0, st.y, m.L - 4, 'left', 'dy');
+      const firstW = {}; m.cells.forEach(c => { if (c.strip === si && !(c.w in firstW)) firstW[c.w] = c; });
+      let lastM = -1, lastX = -1000;
+      Object.keys(firstW).map(Number).sort((a, b) => a - b).forEach(w => {
+        const c = firstW[w];
+        if (c.month === lastM) return;
+        lastM = c.month;
+        if ((w - lastX) * step < 24) return;
+        lastX = w;
+        label(new Date(2000, c.month, 1).toLocaleDateString(undefined, {month: 'short'}), m.L + w * step, st.y);
+      });
+      [0, 2, 4].forEach(r => label(['Mon', 'Tue', 'Wed', 'Thu', 'Fri'][r], 0, st.y + m.hdr + r * step + off, m.L - 4, 'right'));
+    });
+    grid.textContent = ''; grid.appendChild(frag);
+    document.getElementById('stats').textContent = total + (viewDays ? ' verse' : ' chapter') + (total === 1 ? '' : 's') + ' · ' + active + ' active day' + (active === 1 ? '' : 's');
+    if (selDay) { const n = grid.querySelector('.d[data-date="' + selDay + '"]'); if (n) n.classList.add('sel'); }
+    return;
+  }
   // month labels
   const firstOfWeek = {};
   m.cells.forEach(c => { if (!(c.w in firstOfWeek)) firstOfWeek[c.w] = c; });
