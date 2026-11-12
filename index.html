@@ -147,7 +147,9 @@ body.viewing #grid{border:1px dashed #388bfd;border-radius:6px}
 .tile{position:relative;background:#161b22;border:1px solid #30363d;border-radius:10px;padding:12px;cursor:pointer;min-height:110px}
 .tile:active{background:#1d242d}
 .tile.off{opacity:.55}
-.tile .tn{font-weight:600;font-size:15px;padding-right:26px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tile .te{position:absolute;top:4px;right:30px;border:0;background:transparent;color:var(--mut);padding:4px 8px;font-size:15px}
+.tile .tni{width:calc(100% - 60px);font-size:15px;padding:2px 6px;background:transparent;color:var(--fg);border:1px solid var(--line);border-radius:6px}
+.tile .tn{font-weight:600;font-size:15px;padding-right:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tile .tp{font-size:26px;font-weight:700;margin:6px 0 2px}
 .tile .ts{font-size:12px;color:var(--mut)}
 .tile .tx{position:absolute;top:4px;right:4px;border:0;background:transparent;color:var(--mut);padding:4px 8px;font-size:15px}
@@ -1150,9 +1152,9 @@ async function loadPeople() {
   peopleBusy = true;
   if (!people) { grid.textContent = ''; const p = document.createElement('p'); p.className = 'pempty'; p.textContent = 'Loading…'; grid.appendChild(p); }
   try {
-    const l = await sb.rpc('my_followed_summary');       // one call: everyone on the list, summary numbers only
+    const l = await sb.rpc('my_followed_people');       // one call: everyone on the list, summary numbers only
     if (l.error) throw l.error;
-    people = (l.data || []).map(f => ({id: f.share_id, token: f.token, name: f.name || 'Unnamed', f}));
+    people = (l.data || []).map(f => ({id: f.share_id, token: f.token, name: f.name || 'Unnamed', nick: f.nickname || '', f}));
   } catch (e) { if (!people) people = []; info.textContent = 'Could not load your list: ' + (e.message || e); }
   peopleBusy = false;
   if (view === 'people') drawPeople();
@@ -1173,22 +1175,43 @@ function drawPeople() {
   people.forEach(pp => {
     const f = pp.f;
     const t = document.createElement('div'); t.className = 'tile';
-    const n = document.createElement('div'); n.className = 'tn'; n.textContent = pp.name;
+    const n = document.createElement('div'); n.className = 'tn'; n.textContent = pp.nick || pp.name;
     const big = document.createElement('div'); big.className = 'tp';
     const sm = document.createElement('div'); sm.className = 'ts';
     if (f.show_chapters) big.textContent = (f.verses / canonTotal(f.extra ? 'catholic' : 'protestant') * 100).toFixed(1) + '%';
     else { big.textContent = f.verses + (f.verses === 1 ? ' verse' : ' verses'); big.style.fontSize = '20px'; }
-    sm.textContent = [f.show_chapters ? 'Bible chart' : '', f.show_daily ? 'Daily chart' : ''].filter(Boolean).join(' · ') + ' · last change ' + when(new Date(f.updated_at));
+    sm.textContent = (pp.nick ? pp.name + ' · ' : '') + [f.show_chapters ? 'Bible chart' : '', f.show_daily ? 'Daily chart' : ''].filter(Boolean).join(' · ') + ' · last change ' + when(new Date(f.updated_at));
     const x = document.createElement('button'); x.className = 'tx'; x.textContent = '✕'; x.title = 'Remove from list';
     x.onclick = async ev => {
       ev.stopPropagation();
-      if (!confirm('Remove ' + pp.name + ' from your list?')) return;
+      if (!confirm('Remove ' + (pp.nick || pp.name) + ' from your list?')) return;
       const r = await sb.from('followed').delete().eq('share_id', pp.id);
       if (r.error) { info.textContent = r.error.message; return; }
       people = people.filter(z => z.id !== pp.id); drawPeople();
     };
+    const e = document.createElement('button'); e.className = 'te'; e.textContent = '✎'; e.title = pp.nick ? 'Change nickname' : 'Add nickname';
+    e.onclick = ev => {
+      ev.stopPropagation();
+      const inp = document.createElement('input'); inp.className = 'tni'; inp.maxLength = 40; inp.value = pp.nick; inp.placeholder = 'Nickname';
+      let done = false;
+      const finish = async save => {
+        if (done) return; done = true;
+        if (save) {
+          const v = inp.value.trim().slice(0, 40);
+          if (v !== pp.nick) {
+            const r = await sb.rpc('set_follow_nickname', {p_share_id: pp.id, p_nickname: v});
+            if (r.error) info.textContent = r.error.message; else pp.nick = v;
+          }
+        }
+        drawPeople();
+      };
+      inp.onkeydown = k => { if (k.key === 'Enter') finish(true); else if (k.key === 'Escape') finish(false); };
+      inp.onblur = () => finish(true);
+      inp.onclick = z => z.stopPropagation();
+      n.textContent = ''; n.appendChild(inp); inp.focus(); inp.select();
+    };
     t.onclick = () => { location.href = location.pathname + '#share=' + pp.token; location.reload(); };
-    t.append(n, big, sm, x); box.appendChild(t);
+    t.append(n, big, sm, e, x); box.appendChild(t);
   });
   grid.appendChild(box);
 }
