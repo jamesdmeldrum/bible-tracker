@@ -25,8 +25,11 @@ html[data-theme=light] .c.r{box-shadow:none}
 html[data-theme=light] .c.sel,html[data-theme=light] .d.sel{outline-color:#1f2328}
 html[data-theme=light] .d{box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
 html[data-theme=light] .d.today{box-shadow:inset 0 0 0 1px rgba(0,0,0,.6)}
-html[data-theme=light] button,html[data-theme=light] #canon{background:#f6f8fa;color:#1f2328;border-color:#d0d7de}
+html[data-theme=light] button{background:#f6f8fa;color:#1f2328;border-color:#d0d7de}
 html[data-theme=light] button:active{background:#eaeef2}
+html[data-theme=light] .setrow,html[data-theme=light] #viewSeg button,html[data-theme=light] .legkey,html[data-theme=light] button.icon{background:transparent}
+html[data-theme=light] .setrow:active,html[data-theme=light] #viewSeg button:active,html[data-theme=light] button.icon:active{background:#eaeef2}
+html[data-theme=light] .setrow{color:#1f2328}
 html[data-theme=light] .seg button.on{background:#ddf4ff;border-color:#0969da;color:#0550ae}
 html[data-theme=light] #q,html[data-theme=light] dialog input,html[data-theme=light] dialog select{background:#fff;color:#1f2328;border-color:#d0d7de;color-scheme:light}
 html[data-theme=light] dialog{background:#fff;color:#1f2328;border-color:#d0d7de}
@@ -39,12 +42,51 @@ html[data-theme=light] .tile:active{background:#eaeef2}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font:14px system-ui,-apple-system,sans-serif;overscroll-behavior:none}
 body{display:flex;flex-direction:column;padding:max(8px,env(safe-area-inset-top)) 8px max(8px,env(safe-area-inset-bottom))}
-header{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding-bottom:6px}
-h1{font-size:15px;margin:0;font-weight:600}
+header{padding-bottom:6px}
+.hrow{display:flex;align-items:center;justify-content:space-between}
+.hright{display:flex;align-items:center;gap:6px}
+button.pill{font-size:12px;padding:7px 12px;border-radius:18px;white-space:nowrap}
+.hrow2{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px}
+h1{font-size:17px;margin:0;font-weight:600}
 #stats{color:var(--mut);font-size:13px}
-.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--mut)}
+.legend{display:flex;gap:4px 12px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--mut)}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
-#info{height:20px;font-size:13px;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.legkey{display:flex;align-items:center;gap:6px;background:none;border:0;padding:4px 0;color:var(--mut);font-size:12px}
+.legkey .sw{display:flex;gap:2px}.legkey .sw i{width:9px;height:9px;margin:0;border-radius:2px;display:block}
+.legkey svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;transition:transform .15s}
+.legkey.open svg{transform:rotate(180deg)}
+.legfull{flex-basis:100%;display:flex;flex-wrap:wrap;gap:4px 12px}
+button.icon{position:relative;display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;padding:0;border:0;background:transparent;border-radius:50%;color:var(--mut)}
+button.icon svg,#viewSeg svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+button.icon:active{background:var(--empty)}
+button.icon .dot{display:none;position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%;background:#e5534b}
+button.icon.warn .dot{display:block}
+#tip{display:flex;align-items:center;gap:10px;justify-content:space-between;font-size:12px;color:var(--mut);background:var(--empty);border-radius:8px;padding:8px 10px;margin:0 0 6px}
+#tip button{flex:0 0 auto;font-size:12px;padding:5px 10px}
+#viewSeg{display:flex;gap:4px;border-top:1px solid var(--line);margin:6px -8px 0;padding:4px 8px 0}
+#viewSeg button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:0;border-radius:10px;padding:6px 4px;color:var(--mut);font-size:11px;min-height:50px}
+#viewSeg button.on{color:var(--nt)}
+#viewSeg button:active{background:var(--empty)}
+#rangeSeg{align-self:center;margin:8px 0 2px}
+#vstat{text-align:center;margin:6px 0 0!important}
+#setdlg{margin:auto auto 0;width:100%;max-width:480px;max-height:88vh;padding:0;border-radius:16px 16px 0 0;border-bottom:0;overflow-y:auto}
+#setdlg[open]{animation:sheetup .18s ease-out}
+@keyframes sheetup{from{transform:translateY(30px);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){#setdlg[open]{animation:none}}
+.sheet{padding:8px 16px max(18px,env(safe-area-inset-bottom))}
+.sheethead{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px}
+.sheethead h2{margin:0}
+.group{margin-top:14px}
+.gl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin-bottom:4px}
+.setrow{display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;text-align:left;background:transparent;border:0;border-top:1px solid var(--line);border-radius:0;padding:13px 2px;min-height:48px;font-size:15px;color:var(--fg)}
+.gl+.setrow,.gl+label.setrow{border-top:0}
+.setrow+.setrow{border-top:1px solid var(--line)}
+.setrow:active{background:var(--empty)}
+.setrow .val{color:var(--mut)}
+#setdlg #canon{background:transparent;border:0;padding:0;margin:0;width:auto;max-width:60%;color:var(--mut);font:inherit;text-align:right;color-scheme:inherit}
+.help{margin:0;padding-left:18px;color:var(--mut);font-size:13px;line-height:1.6}
+.help b{color:var(--fg);font-weight:600}
+#info{min-height:20px;font-size:13px;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #gz{position:absolute;left:0;top:0;width:100%;height:100%;transform-origin:0 0}
 #grid{position:relative;flex:1;min-height:0;overflow-x:hidden;overflow-y:auto;touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 .c{position:absolute;border-radius:2px;cursor:pointer;-webkit-tap-highlight-color:transparent;
@@ -65,7 +107,6 @@ background:color-mix(in srgb,var(--col) 16%,var(--empty));box-shadow:inset 0 0 0
 .d.sel{outline:2px solid #fff;outline-offset:1px;z-index:2}
 .dy{font-weight:600;color:var(--fg)}
 .dl{position:absolute;font-size:10px;line-height:12px;color:var(--mut);pointer-events:none;white-space:nowrap}
-footer{display:flex;flex-wrap:wrap;gap:8px;padding-top:6px;align-items:center;font-size:12px;color:var(--mut)}
 button{font:inherit;color:var(--fg);background:#21262d;border:1px solid #30363d;border-radius:6px;padding:6px 10px}
 button:active{background:#30363d}
 dialog{background:#161b22;color:var(--fg);border:1px solid #30363d;border-radius:10px;padding:16px;max-width:320px;width:calc(100% - 32px)}
@@ -87,9 +128,8 @@ dialog .chk input{width:20px;height:20px;margin:0;padding:0;flex:0 0 auto}
 .shitem .chk{display:inline-flex;margin:0 14px 6px 0}
 #sacct{margin:0;word-break:break-all}
 .c.hl{box-shadow:0 0 0 2px #ffd33d,0 0 10px 3px rgba(255,211,61,.85);z-index:3}
-#canon{font:inherit;color:var(--fg);background:#21262d;border:1px solid #30363d;border-radius:6px;padding:6px 8px;max-width:48vw}
 #sync .cyc{display:inline-grid}
-#sync .cyc>span{grid-area:1/1;text-align:center;animation:cyc 10s ease-in-out infinite}
+#sync .cyc>span{grid-area:1/1;text-align:left;animation:cyc 10s ease-in-out infinite}
 #sync .cyc>span:nth-child(2){animation-delay:-5s}
 @keyframes cyc{0%,40%{opacity:1}50%,90%{opacity:0}100%{opacity:1}}
 @media (prefers-reduced-motion:reduce){#sync .cyc>span{animation:none}#sync .cyc>span:nth-child(2){opacity:0}}
@@ -119,25 +159,51 @@ body.viewing #grid{border:1px dashed #388bfd;border-radius:6px}
   <button id="vhome">My progress</button>
 </div>
 <header>
-  <h1 id="h1">Bible Reading</h1>
-  <div class="seg" id="viewSeg"><button data-v="chapters">Chapters</button><button data-v="daily">Daily</button><button data-v="people" id="tabPeople" hidden>People</button></div>
-  <span id="stats"></span>
-  <div class="legend" id="legendCh"></div>
-  <div class="legend" id="legendDay" hidden><span>Less</span><span id="scale"></span><span>More</span></div>
+  <div class="hrow"><h1 id="h1">Bible Reading</h1>
+    <span class="hright"><span id="homeSync"></span>
+    <button id="gear" class="icon" aria-label="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><i class="dot"></i></button></span>
+  </div>
+  <div class="hrow2"><span id="stats"></span>
+    <div class="legend" id="legendCh"></div>
+    <div class="legend" id="legendDay" hidden><span>Less</span><span id="scale"></span><span>More</span></div>
+  </div>
 </header>
 <form id="qform" autocomplete="off"><input id="q" type="search" enterkeyhint="search" autocapitalize="off" spellcheck="false" placeholder="Search a book or chapter, e.g. John 3"></form>
-<div id="info">Tap a chapter to see it. Double-tap to mark read. Long-press to edit date.</div>
+<div id="tip" hidden><span>Tap a chapter to see it · double-tap to mark it read · long-press to edit its date · pinch to zoom</span><button id="tipok">Got it</button></div>
+<div id="info"></div>
 <div id="grid"></div>
-<footer>
-  <button id="sync" hidden></button>
-  <button id="share" hidden>Share</button>
-  <span class="hint" id="vstat" style="margin:0" hidden></span>
-  <select id="canon"></select>
-  <button id="colors"></button>
-  <button id="theme"></button>
-  <button id="mode"></button>
-  <div class="seg" id="rangeSeg" hidden><button data-r="w">1W</button><button data-r="m">1M</button><button data-r="q">3M</button><button data-r="y">12M</button><button data-r="a">All</button></div>
-</footer>
+<span class="hint" id="vstat" hidden></span>
+<div class="seg" id="rangeSeg" hidden><button data-r="w">1W</button><button data-r="m">1M</button><button data-r="q">3M</button><button data-r="y">12M</button><button data-r="a">All</button></div>
+<nav id="viewSeg" aria-label="Views">
+  <button data-v="chapters"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>Chapters</span></button>
+  <button data-v="daily"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg><span>Daily</span></button>
+  <button data-v="people" id="tabPeople" hidden><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.3c2.2.7 3.5 2.6 3.5 5.7"/></svg><span>People</span></button>
+</nav>
+
+<dialog id="setdlg"><div class="sheet">
+  <div class="sheethead"><h2>Settings</h2><button id="setclose" class="icon" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="group" id="accgroup"><div class="gl">Account</div>
+    <button id="sync" class="setrow" hidden></button>
+    <button id="share" class="setrow" hidden><span>Share your progress</span><span class="val">›</span></button>
+  </div>
+  <div class="group"><div class="gl">Chart</div>
+    <label class="setrow" id="canonRow"><span>Canon</span><select id="canon"></select></label>
+    <button id="colors" class="setrow"></button>
+    <button id="mode" class="setrow"></button>
+  </div>
+  <div class="group"><div class="gl">Appearance</div>
+    <button id="theme" class="setrow"></button>
+  </div>
+  <div class="group"><div class="gl">How to use</div>
+    <ul class="help">
+      <li><b>Tap</b> a chapter to see it.</li>
+      <li><b>Double-tap</b> (or click) to mark it read or unread.</li>
+      <li><b>Long-press</b> (or right-click) to change the date you read it.</li>
+      <li><b>Pinch</b> to zoom the chart, and drag with two fingers to move around.</li>
+      <li>On the Daily tab, tap a day to see what was read.</li>
+    </ul>
+  </div>
+</div></dialog>
 
 <dialog id="dlg">
   <h2 id="dtitle"></h2>
@@ -448,7 +514,14 @@ const MODE_KEY = 'bibleModeV1';
 let mode = 'fixed';
 try { mode = localStorage.getItem(MODE_KEY) === 'length' ? 'length' : 'fixed'; } catch (e) {}
 const modeBtn = document.getElementById('mode');
-const setModeLabel = () => { modeBtn.textContent = mode === 'length' ? 'Size: by length' : 'Size: fixed'; };
+// A settings row: label on the left, current value on the right.
+function setRow(btn, label, value) {
+  btn.textContent = '';
+  const a = document.createElement('span'), b = document.createElement('span');
+  a.textContent = label; b.className = 'val'; b.textContent = value;
+  btn.appendChild(a); btn.appendChild(b);
+}
+const setModeLabel = () => { setRow(modeBtn, 'Chart size', mode === 'length' ? 'By length' : 'Fixed'); };
 modeBtn.onclick = () => {
   mode = mode === 'length' ? 'fixed' : 'length';
   try { localStorage.setItem(MODE_KEY, mode); } catch (e) {}
@@ -543,6 +616,8 @@ document.getElementById('dunread').onclick = () => { setRead(chapters[editing].k
 document.getElementById('dcancel').onclick = () => dlg.close();
 
 // ---- daily view ----
+let tipPending = true;      // first-time usage tip (dismissed once, remembered)
+try { tipPending = !localStorage.getItem('bibleTipV1'); } catch (e) {}
 const VIEW_KEY = 'bibleViewV1', RANGE_KEY = 'bibleRangeV2';
 let view = 'chapters', range = 'q', selDay = null;
 try {
@@ -744,17 +819,14 @@ function applyViewUI() {
   document.getElementById('legendCh').hidden = daily || people;
   document.getElementById('legendDay').hidden = !daily;
   document.getElementById('rangeSeg').hidden = !daily;
-  modeBtn.hidden = daily || people;
-  $('canon').hidden = daily || people || !!viewToken;
-  $('colors').hidden = daily || people;
+  $('canonRow').hidden = !!viewToken;
+  $('tip').hidden = !(tipPending && view === 'chapters' && !viewToken);
   $('qform').hidden = view !== 'chapters' || (viewToken && vLevel === 'daily');
   grid.style.touchAction = view === 'chapters' ? 'none' : '';      // chapter chart: we handle pinch / two-finger pan ourselves
   grid.style.overflowY = view === 'chapters' ? 'hidden' : '';
   document.querySelectorAll('#viewSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === view));
   document.querySelectorAll('#rangeSeg button').forEach(b => b.classList.toggle('on', b.dataset.r === range));
-  info.textContent = people ? 'People who shared their progress with you. Tap a tile to view it.'
-    : viewToken ? (daily ? 'Tap a day to see what was read.' : 'Tap a chapter to see it. Pinch to zoom.')
-    : daily ? 'Tap a day to see what you read.' : 'Tap a chapter to see it. Double-tap to mark read. Long-press to edit date. Pinch to zoom.';
+  info.textContent = '';
   if (people) $('stats').textContent = '';
 }
 function setView(v) {
@@ -939,18 +1011,25 @@ function showStep(s) {
 function setCycle() {
   if (sbtn.dataset.cyc) return;
   sbtn.dataset.cyc = '1'; sbtn.textContent = '';
+  sbtn.appendChild(document.createTextNode('☁ Sign in to '));
   const w = document.createElement('span'); w.className = 'cyc';
-  ['☁ Sign in to sync', '☁ Sign in to share'].forEach(t => { const e = document.createElement('span'); e.textContent = t; w.appendChild(e); });
+  ['sync', 'share'].forEach(t => { const e = document.createElement('span'); e.textContent = t; w.appendChild(e); });
   sbtn.appendChild(w);
 }
 function updateSyncUI() {
-  if (!sbEnabled || viewToken) { sbtn.hidden = true; return; }
+  if (!sbEnabled || viewToken) { sbtn.hidden = true; $('share').hidden = true; $('accgroup').hidden = true; return; }
   sbtn.hidden = false;
+  // Signed out: the sign-in button lives on the home screen. Signed in: it moves into the settings sheet.
+  const home = $('homeSync');
+  if (!user) { if (sbtn.parentNode !== home) home.appendChild(sbtn); sbtn.classList.add('pill'); sbtn.classList.remove('setrow'); }
+  else { if (sbtn.parentNode === home) $('accgroup').insertBefore(sbtn, $('share')); sbtn.classList.remove('pill'); sbtn.classList.add('setrow'); }
+  $('accgroup').hidden = !user;
   $('share').hidden = !user;
   $('tabPeople').hidden = !user;
   $('viewSeg').classList.toggle('two', !user);
   if (!user && view === 'people') setView('chapters');
   if (!user) setCycle(); else sbtn.textContent = syncing ? '☁ Syncing…' : syncErr ? '☁ Sync problem' : lastSync ? '☁ Synced ' + hhmm(lastSync) : '☁ Sync';
+  $('gear').classList.toggle('warn', !!syncErr);           // red dot on the gear when sync has a problem
   if (user) {
     delete sbtn.dataset.cyc;
     $('sacct').textContent = (user.email || 'Signed in') + (syncErr ? ' — ' + syncErr : lastSync ? ' — synced ' + hhmm(lastSync) : '');
@@ -980,17 +1059,34 @@ if (!viewToken && sbEnabled) {
   window.addEventListener('online', () => { if (user) syncNow(); });
 }
 
+$('tipok').onclick = () => { tipPending = false; try { localStorage.setItem('bibleTipV1', '1'); } catch (e) {} $('tip').hidden = true; };
+
 // ---- colour mode ----
 const cbtn = $('colors');
+let legendOpen = false;
 function renderLegend() {
-  const items = cmode === 'simple' ? [['var(--ot)', 'Old Testament'], ['var(--nt)', 'New Testament']]
-    : GROUPS.map(g => ['var(--g-' + g[0] + ')', g[1]]);
   const box = $('legendCh'); box.textContent = '';
-  items.forEach(it => {
-    const sp = document.createElement('span'), i = document.createElement('i');
-    i.style.background = it[0]; sp.appendChild(i); sp.appendChild(document.createTextNode(it[1])); box.appendChild(sp);
-  });
-  cbtn.textContent = 'Colours: ' + (cmode === 'simple' ? 'Simple' : 'Detailed');
+  const item = it => { const sp = document.createElement('span'), i = document.createElement('i');
+    i.style.background = it[0]; sp.appendChild(i); sp.appendChild(document.createTextNode(it[1])); return sp; };
+  if (cmode === 'simple') {
+    [['var(--ot)', 'Old Testament'], ['var(--nt)', 'New Testament']].forEach(it => box.appendChild(item(it)));
+  } else {
+    // Ten groups: a compact strip of swatches; tap it to open the labelled key.
+    const key = document.createElement('button'); key.className = 'legkey' + (legendOpen ? ' open' : '');
+    const sw = document.createElement('span'); sw.className = 'sw';
+    GROUPS.forEach(g => { const i = document.createElement('i'); i.style.background = 'var(--g-' + g[0] + ')'; sw.appendChild(i); });
+    const t = document.createElement('span'); t.textContent = 'Key';
+    key.appendChild(sw); key.appendChild(t);
+    key.insertAdjacentHTML('beforeend', '<svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>');
+    key.onclick = () => { legendOpen = !legendOpen; renderLegend(); relayout(); };
+    box.appendChild(key);
+    if (legendOpen) {
+      const full = document.createElement('div'); full.className = 'legfull';
+      GROUPS.forEach(g => full.appendChild(item(['var(--g-' + g[0] + ')', g[1]])));
+      box.appendChild(full);
+    }
+  }
+  setRow(cbtn, 'Chapter colours', cmode === 'simple' ? 'Simple' : 'Detailed');
 }
 cbtn.onclick = () => {
   cmode = cmode === 'simple' ? 'detailed' : 'simple';
@@ -1278,7 +1374,7 @@ function applyTheme() {
     document.documentElement.setAttribute('data-theme', light ? 'light' : 'dark');
     const m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', light ? '#ffffff' : '#0d1117');
   } catch (e) {}
-  $('theme').textContent = 'Theme: ' + THEME_LABEL[themePref];
+  setRow($('theme'), 'Theme', THEME_LABEL[themePref]);
   renderScale(); relayout();
 }
 $('theme').onclick = () => {
@@ -1287,7 +1383,14 @@ $('theme').onclick = () => {
   applyTheme();
 };
 try { window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { if (themePref === 'auto') applyTheme(); }); } catch (e) {}
-$('theme').textContent = 'Theme: ' + THEME_LABEL[themePref];
+setRow($('theme'), 'Theme', THEME_LABEL[themePref]);
+
+// ---- settings sheet ----
+const setdlg = $('setdlg');
+$('gear').onclick = () => setdlg.showModal();
+$('setclose').onclick = () => setdlg.close();
+setdlg.addEventListener('click', e => { if (e.target === setdlg) setdlg.close(); });     // tap outside the sheet
+['sync', 'share'].forEach(id => $(id).addEventListener('click', () => setdlg.close()));  // those open their own dialogs
 
 updateSyncUI();
 
