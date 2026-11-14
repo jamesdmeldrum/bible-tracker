@@ -93,6 +93,11 @@ button.icon.warn .dot{display:block}
 .c{position:absolute;border-radius:2px;cursor:pointer;-webkit-tap-highlight-color:transparent;
 background:color-mix(in srgb,var(--col) 16%,var(--empty));box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
 .c.r{background:var(--col);box-shadow:none}
+@keyframes pop{0%{transform:scale(.5);opacity:.45}60%{transform:scale(1.15);opacity:1}100%{transform:scale(1);opacity:1}}
+@keyframes popbook{0%{transform:scale(.3);opacity:.35}60%{transform:scale(1.2);opacity:1}100%{transform:scale(1);opacity:1}}
+.c.pop{animation:pop .36s cubic-bezier(.2,.8,.3,1);z-index:4}
+.c.pop.book{animation:popbook .7s cubic-bezier(.2,.8,.3,1)}
+@media (prefers-reduced-motion:reduce){.c.pop,.c.pop.book{animation:none}}
 .c.cr{border-top-right-radius:0;border-bottom-right-radius:0}
 .c.cl{border-top-left-radius:0;border-bottom-left-radius:0}
 .c.sel{outline:2px solid #fff;outline-offset:1px;z-index:2}
@@ -600,10 +605,23 @@ function showInfo(i, quiet) {
   const d = read[c.key];
   info.textContent = c.book + ' ' + c.ch + ' · ' + c.verses + ' verses · ' + (d ? (typeof d === 'string' ? 'read ' + fmt(d) : 'read') : 'not read');
 }
+// Little pop on a chapter that was just marked read. If that finishes its whole book, every chapter of the book pops at once.
+function popChapter(i) {
+  const book = chapters[i].book;
+  const all = [];
+  chapters.forEach((c, j) => { if (c.book === book) all.push(j); });
+  const done = all.every(j => read[chapters[j].key]);
+  (done ? all : [i]).forEach(j => segs[j].forEach(e => {
+    e.classList.remove('pop', 'book'); void e.offsetWidth;
+    e.classList.add('pop'); if (done) e.classList.add('book');
+    e.addEventListener('animationend', () => e.classList.remove('pop', 'book'), {once: true});
+  }));
+}
 function toggle(i) {
-  const c = chapters[i];
-  setRead(c.key, read[c.key] ? null : today());
+  const c = chapters[i], was = !!read[c.key];
+  setRead(c.key, was ? null : today());
   paint(); showInfo(i);
+  if (!was) popChapter(i);
 }
 
 // ---- date dialog ----
@@ -616,7 +634,7 @@ function openEdit(i) {
   ddate.value = read[c.key] || today();
   dlg.showModal();
 }
-document.getElementById('dsave').onclick = () => { if (ddate.value) { setRead(chapters[editing].key, ddate.value); paint(); showInfo(editing); } dlg.close(); };
+document.getElementById('dsave').onclick = () => { if (ddate.value) { const was = !!read[chapters[editing].key]; setRead(chapters[editing].key, ddate.value); paint(); showInfo(editing); if (!was) popChapter(editing); } dlg.close(); };
 document.getElementById('dunread').onclick = () => { setRead(chapters[editing].key, null); paint(); showInfo(editing); dlg.close(); };
 document.getElementById('dcancel').onclick = () => dlg.close();
 
@@ -1140,6 +1158,7 @@ function runSearch(enter) {
   if (res.length === 1) {
     setHl(res); showInfo(res[0], true);
     revealChapter(res[0]);
+    if (enter) openEdit(res[0]);   // Enter on one specific chapter opens its card (set date / mark read or unread)
   } else if (enter) {
     setHl(res);
     const c0 = chapters[res[0]];
